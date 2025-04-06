@@ -7,14 +7,36 @@
 <body>
     <h1>Upload PDFs for AI Marking</h1>
 
-    <form method="POST" action="/upload" enctype="multipart/form-data">
-        <label><strong>Mark Scheme (PDF):</strong></label><br>
-        <input type="file" name="markscheme_file" accept=".pdf" required><br><br>
-
-        <label><strong>Student Responses (PDFs):</strong></label><br>
-        <input type="file" name="student_files" accept=".pdf" multiple required><br><br>
-
-        <button type="submit">Upload and Mark</button>
-    </form>
+    <form action="/upload" method="post" enctype="multipart/form-data">
+        <label for="subject">Choose a subject:</label>
+        <select name="subject" id="subject" required>
+          <option value="Physics">Physics</option>
+          <option value="Maths">Maths</option>
+          <option value="English">English</option>
+          <option value="History">History</option>
+          <option value="Geography">Geography</option>
+        </select>
+        <br><br>
+      
+        <label for="exam_board">Choose an exam board:</label>
+        <select name="exam_board" id="exam_board" required>
+          <option value="AQA">AQA</option>
+          <option value="Edexcel">Edexcel</option>
+          <option value="OCR">OCR</option>
+          <option value="WJEC">WJEC</option>
+        </select>
+        <br><br>
+      
+        <label for="markscheme_file">Upload mark scheme:</label>
+        <input type="file" name="markscheme_file" required>
+        <br><br>
+      
+        <label for="student_files">Upload student responses (PDFs):</label>
+        <input type="file" name="student_files" multiple required>
+        <br><br>
+      
+        <input type="submit" value="Upload and Mark">
+      </form>
+      
 </body>
 </html>
