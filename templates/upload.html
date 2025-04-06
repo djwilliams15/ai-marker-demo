@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Upload Assessments for AI Marking</title>
+</head>
+<body>
+    <h1>Upload PDFs for AI Marking</h1>
+
+    <form method="POST" action="/upload" enctype="multipart/form-data">
+        <label><strong>Mark Scheme (PDF):</strong></label><br>
+        <input type="file" name="markscheme_file" accept=".pdf" required><br><br>
+
+        <label><strong>Student Responses (PDFs):</strong></label><br>
+        <input type="file" name="student_files" accept=".pdf" multiple required><br><br>
+
+        <button type="submit">Upload and Mark</button>
+    </form>
+</body>
+</html>

@@ -37,9 +37,6 @@ def extract_text(pdf_path):
                 text += pytesseract.image_to_string(img)
         return text.strip()
 
-
-
-
 # 🔹 Home page
 @app.route('/')
 def index():
@@ -73,7 +70,6 @@ def upload_file():
         print(f"\n--- {student_file.filename} | OCR Extracted Text ---\n")
         print(student_text)
         print("\n--- End of Extracted Text ---\n")
-
 
         try:
             response = client.chat.completions.create(

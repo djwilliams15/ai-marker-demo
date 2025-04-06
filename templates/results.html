@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Student Feedback</title>
+    <style>
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .student-block {
+            width: 100%;
+            margin-bottom: 40px;
+        }
+        .filename {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .side-by-side {
+            display: flex;
+            gap: 20px;
+        }
+        .box {
+            flex: 1;
+            border: 1px solid #ccc;
+            padding: 10px;
+            white-space: pre-wrap;
+            background-color: #f9f9f9;
+        }
+        h3 {
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>AI Marking Results</h1>
+
+    {% if markscheme_text %}
+        <h2>Mark Scheme Used</h2>
+        <pre>{{ markscheme_text }}</pre>
+        <hr>
+    {% endif %}
+
+    {% for result in results %}
+        <div class="student-block">
+            <div class="filename">{{ result.filename }}</div>
+            <div class="side-by-side">
+                <div class="box">
+                    <h3>Student's Original Answer</h3>
+                    {{ result.student_text }}
+                </div>
+                <div class="box">
+                    <h3>AI Feedback</h3>
+                    {{ result.feedback }}
+                </div>
+            </div>
+        </div>
+    {% endfor %}
+</body>
+</html>
