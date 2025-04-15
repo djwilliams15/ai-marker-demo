@@ -16,6 +16,11 @@ from werkzeug.utils import secure_filename
 # Load environment variables from .env file
 load_dotenv()
 
+# 🔍 DEBUG: Print key environment variables to verify they’re loading (remove in production)
+print("🔍 OPENAI_API_KEY:", os.getenv("OPENAI_API_KEY"))
+print("🔍 ACS_EMAIL_CONNECTION_STRING:", os.getenv("ACS_EMAIL_CONNECTION_STRING"))
+print("🔍 SMTP_SENDER_EMAIL:", os.getenv("SMTP_SENDER_EMAIL"))
+
 # Set up OpenAI using your key
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
@@ -41,9 +46,8 @@ def send_email_with_attachments_acs(to_email, subject, body, attachments):
 
     client = EmailClient.from_connection_string(connection_string)
 
-    # Build the email payload as a dictionary.
     email_payload = {
-        "senderAddress": os.getenv("SMTP_SENDER_EMAIL"),  # Must exactly match your verified sender address
+        "senderAddress": os.getenv("SMTP_SENDER_EMAIL"),
         "content": {
             "subject": subject,
             "plainText": body
@@ -55,7 +59,6 @@ def send_email_with_attachments_acs(to_email, subject, body, attachments):
         }
     }
 
-    # Process attachments and add them as a list of dictionaries.
     if attachments:
         attachment_list = []
         for filepath in attachments:
@@ -74,9 +77,8 @@ def send_email_with_attachments_acs(to_email, subject, body, attachments):
             email_payload["attachments"] = attachment_list
 
     try:
-        # Use begin_send to send the email asynchronously
         poller = client.begin_send(email_payload)
-        result = poller.result()  # Wait for the operation to complete
+        result = poller.result()
         print("✅ Email sent successfully via ACS. Result:", result)
     except Exception as e:
         print("❌ Failed to send email via ACS:", e)
@@ -95,7 +97,7 @@ def save_feedback_pdf(filename, student_name, feedback):
     c.setFont("Helvetica", 11)
     y = height - 80
     for line in feedback.splitlines():
-        if y < 50:  # Add a new page when running out of space
+        if y < 50:
             c.showPage()
             y = height - 50
         c.drawString(50, y, line)
@@ -170,7 +172,6 @@ def upload_file():
     if markscheme_file.filename == '' or not student_files:
         return 'No file(s) selected.'
 
-    # Save the mark scheme file
     markscheme_filename = secure_filename(markscheme_file.filename)
     markscheme_path = os.path.join(app.config['UPLOAD_FOLDER'], markscheme_filename)
     markscheme_file.save(markscheme_path)
@@ -187,7 +188,6 @@ def upload_file():
         student_text = extract_text(student_path)
 
         try:
-            # Generate feedback using OpenAI's GPT-4
             response = openai.ChatCompletion.create(
                 model="gpt-4",
                 messages=[
@@ -225,7 +225,6 @@ def upload_file():
             pdf_filename = f"{os.path.splitext(student_file.filename)[0]}_feedback.pdf"
             pdf_path = save_feedback_pdf(pdf_filename, student_file.filename, feedback)
 
-            # Extract mark using regex (e.g., "Mark: 5/6")
             mark_match = re.search(r"Mark:\s*(\d+)\s*/\s*(\d+)", feedback)
             if mark_match:
                 score = int(mark_match.group(1))
@@ -262,18 +261,15 @@ def upload_file():
     valid_marks = [m for m in marks if m is not None]
     class_average = round(sum(valid_marks) / len(valid_marks), 1) if valid_marks else "N/A"
 
-    # Generate a Class Summary PDF using the class feedback and class average
     class_summary_pdf = save_class_summary_pdf("class_summary.pdf", class_feedback, class_average)
 
-    # Prepare list of feedback PDF paths for attachment (including the Class Summary PDF)
     feedback_pdfs = [os.path.join(UPLOAD_FOLDER, f"{os.path.splitext(r['filename'])[0]}_feedback.pdf") for r in results]
     feedback_pdfs.append(class_summary_pdf)
 
-    # Send email using Azure Communication Services Email
     send_email_with_attachments_acs(
-        teacher_email, 
-        "Student Feedback PDFs", 
-        "Please find attached the feedback PDFs for the recent submissions, including the class summary.", 
+        teacher_email,
+        "Student Feedback PDFs",
+        "Please find attached the feedback PDFs for the recent submissions, including the class summary.",
         feedback_pdfs
     )
 
