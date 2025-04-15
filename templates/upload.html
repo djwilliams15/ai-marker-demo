@@ -3,11 +3,59 @@
 <head>
     <meta charset="UTF-8">
     <title>Upload Assessments for AI Marking</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        form {
+            max-width: 600px;
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-top: 15px;
+        }
+        input[type="text"],
+        input[type="email"],
+        select,
+        input[type="file"] {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            margin-top: 5px;
+        }
+        input[type="submit"] {
+            margin-top: 20px;
+            padding: 10px 15px;
+            font-size: 1em;
+        }
+        /* Styling for the progress bar */
+        #progressBar {
+            width: 100%;
+            background-color: #ddd;
+            border: 1px solid #ccc;
+            margin-top: 20px;
+            display: none;
+        }
+        #progressBar div {
+            width: 0%;
+            height: 30px;
+            background-color: #4caf50;
+            text-align: center;
+            line-height: 30px;
+            color: white;
+        }
+        /* Style for the completion message */
+        #uploadComplete {
+            margin-top: 20px;
+            display: none;
+        }
+    </style>
 </head>
 <body>
     <h1>Upload PDFs for AI Marking</h1>
-
-    <form action="/upload" method="post" enctype="multipart/form-data">
+    <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
         <label for="subject">Choose a subject:</label>
         <select name="subject" id="subject" required>
           <option value="Physics">Physics</option>
@@ -16,7 +64,6 @@
           <option value="History">History</option>
           <option value="Geography">Geography</option>
         </select>
-        <br><br>
       
         <label for="exam_board">Choose an exam board:</label>
         <select name="exam_board" id="exam_board" required>
@@ -25,18 +72,73 @@
           <option value="OCR">OCR</option>
           <option value="WJEC">WJEC</option>
         </select>
-        <br><br>
       
-        <label for="markscheme_file">Upload mark scheme:</label>
-        <input type="file" name="markscheme_file" required>
-        <br><br>
+        <label for="markscheme_file">Upload mark scheme (PDF):</label>
+        <input type="file" name="markscheme_file" id="markscheme_file" required>
       
         <label for="student_files">Upload student responses (PDFs):</label>
-        <input type="file" name="student_files" multiple required>
+        <input type="file" name="student_files" id="student_files" multiple required>
+      
+        <label for="teacher_email">Your Email Address:</label>
+        <input type="email" name="teacher_email" id="teacher_email" required>
+      
+        <label for="additional_info"><strong>Additional Instructions / Information:</strong></label><br>
+        <textarea name="additional_info" id="additional_info" rows="5" cols="50" placeholder="Enter any extra details about the assessment here..."></textarea>
         <br><br>
-      
+
         <input type="submit" value="Upload and Mark">
-      </form>
-      
+    </form>
+
+    <!-- Progress bar -->
+    <div id="progressBar">
+        <div>0%</div>
+    </div>
+
+    <!-- Completion message -->
+    <div id="uploadComplete">
+        <h2>Upload Complete!</h2>
+        <p>Your files have been uploaded and processed. Please check your email for the results.</p>
+    </div>
+    
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+            e.preventDefault(); // Prevent the default form submission
+
+            var form = e.target;
+            var formData = new FormData(form);
+
+            // Create a new XMLHttpRequest
+            var xhr = new XMLHttpRequest();
+            xhr.open(form.method, form.action, true);
+
+            // Show the progress bar
+            var progressBar = document.getElementById('progressBar');
+            progressBar.style.display = "block";
+            var progressBarFill = progressBar.firstElementChild;
+
+            // Update the progress bar as the file uploads
+            xhr.upload.addEventListener("progress", function(evt) {
+                if (evt.lengthComputable) {
+                    var percentComplete = Math.round((evt.loaded / evt.total) * 100);
+                    progressBarFill.style.width = percentComplete + '%';
+                    progressBarFill.textContent = percentComplete + '%';
+                }
+            }, false);
+
+            // When the upload is complete, update the page
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) { // Request is complete
+                    // Hide the form and progress bar
+                    form.style.display = "none";
+                    progressBar.style.display = "none";
+                    // Show the "upload complete" message
+                    document.getElementById('uploadComplete').style.display = "block";
+                }
+            };
+
+            // Send the form data using AJAX
+            xhr.send(formData);
+        });
+    </script>
 </body>
 </html>
