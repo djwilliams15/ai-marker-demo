@@ -5,7 +5,7 @@ from PIL import Image
 from flask import Flask, render_template, request
 # from dotenv import load_dotenv  # Disabled in production
 from document_ocr import extract_text_with_document_intelligence
-import openai
+import openai import OpenAI
 import re
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
@@ -21,8 +21,8 @@ print("🔍 ACS_EMAIL_CONNECTION_STRING:", os.getenv("ACS_EMAIL_CONNECTION_STRIN
 print("🔍 SMTP_SENDER_EMAIL:", os.getenv("SMTP_SENDER_EMAIL"))
 
 # Set up OpenAI using your key
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
+#openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 # Configure Tesseract (update the path if necessary)
 pytesseract.pytesseract.tesseract_cmd = r"C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
 
@@ -187,7 +187,7 @@ def upload_file():
         student_text = extract_text(student_path)
 
         try:
-            response = openai.ChatCompletion.create(
+            response = client.chat.completion.create(
                 model="gpt-4",
                 messages=[
                     {
