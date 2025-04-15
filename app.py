@@ -3,7 +3,7 @@ import fitz  # PyMuPDF for PDF processing
 import pytesseract
 from PIL import Image
 from flask import Flask, render_template, request
-#from dotenv import load_dotenv
+# from dotenv import load_dotenv  # Disabled in production
 from document_ocr import extract_text_with_document_intelligence
 import openai
 import re
@@ -12,9 +12,6 @@ from reportlab.pdfgen import canvas
 import base64
 from azure.communication.email import EmailClient
 from werkzeug.utils import secure_filename
-
-# Load environment variables from .env file
-#load_dotenv()
 
 # 🔍 DEBUG: Print key environment variables to verify they’re loading (remove in production)
 print("🔍 OPENAI_API_KEY:", os.getenv("OPENAI_API_KEY"))
@@ -25,7 +22,7 @@ print("🔍 SMTP_SENDER_EMAIL:", os.getenv("SMTP_SENDER_EMAIL"))
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Configure Tesseract (update the path if necessary)
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+pytesseract.pytesseract.tesseract_cmd = r"C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
 
 # Initialize Flask app and set the upload folder
 app = Flask(__name__)
