@@ -3,7 +3,7 @@ import fitz  # PyMuPDF for PDF processing
 import pytesseract
 from PIL import Image
 from flask import Flask, render_template, request
-from dotenv import load_dotenv
+#from dotenv import load_dotenv
 from document_ocr import extract_text_with_document_intelligence
 import openai
 import re
@@ -14,7 +14,7 @@ from azure.communication.email import EmailClient
 from werkzeug.utils import secure_filename
 
 # Load environment variables from .env file
-load_dotenv()
+#load_dotenv()
 
 # 🔍 DEBUG: Print key environment variables to verify they’re loading (remove in production)
 print("🔍 OPENAI_API_KEY:", os.getenv("OPENAI_API_KEY"))
