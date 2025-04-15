@@ -5,7 +5,7 @@ from PIL import Image
 from flask import Flask, render_template, request
 # from dotenv import load_dotenv  # Disabled in production
 from document_ocr import extract_text_with_document_intelligence
-import openai import OpenAI
+import openai
 import re
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
@@ -21,8 +21,8 @@ print("🔍 ACS_EMAIL_CONNECTION_STRING:", os.getenv("ACS_EMAIL_CONNECTION_STRIN
 print("🔍 SMTP_SENDER_EMAIL:", os.getenv("SMTP_SENDER_EMAIL"))
 
 # Set up OpenAI using your key
-#openai.api_key = os.getenv("OPENAI_API_KEY")
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
 # Configure Tesseract (update the path if necessary)
 pytesseract.pytesseract.tesseract_cmd = r"C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
 
@@ -34,9 +34,7 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
-###############################################
-# Email Sending via Azure Communication Services Email (Dictionary Payload)
-###############################################
+# Email Sending Function
 def send_email_with_attachments_acs(to_email, subject, body, attachments):
     connection_string = os.getenv("ACS_EMAIL_CONNECTION_STRING")
     if not connection_string:
@@ -82,9 +80,7 @@ def send_email_with_attachments_acs(to_email, subject, body, attachments):
     except Exception as e:
         print("❌ Failed to send email via ACS:", e)
 
-###############################################
-# PDF Generation Function for Individual Feedback using ReportLab
-###############################################
+# PDF Generation for Feedback
 def save_feedback_pdf(filename, student_name, feedback):
     pdf_path = os.path.join(UPLOAD_FOLDER, filename)
     c = canvas.Canvas(pdf_path, pagesize=A4)
@@ -105,9 +101,7 @@ def save_feedback_pdf(filename, student_name, feedback):
     c.save()
     return pdf_path
 
-###############################################
-# PDF Generation Function for Class Summary using ReportLab
-###############################################
+# PDF Generation for Class Summary
 def save_class_summary_pdf(filename, class_feedback, class_average):
     pdf_path = os.path.join(UPLOAD_FOLDER, filename)
     c = canvas.Canvas(pdf_path, pagesize=A4)
@@ -131,9 +125,7 @@ def save_class_summary_pdf(filename, class_feedback, class_average):
     c.save()
     return pdf_path
 
-###############################################
-# OCR Function with Fallback Strategy
-###############################################
+# OCR with Fallback
 def extract_text(pdf_path):
     try:
         print(f"Using Azure Document Intelligence on: {pdf_path}")
@@ -149,9 +141,7 @@ def extract_text(pdf_path):
                 text += pytesseract.image_to_string(img)
         return text.strip()
 
-###############################################
 # Flask Routes
-###############################################
 @app.route('/')
 def index():
     return render_template('upload.html')
@@ -187,7 +177,7 @@ def upload_file():
         student_text = extract_text(student_path)
 
         try:
-            response = client.chat.completion.create(
+            response = openai.ChatCompletion.create(
                 model="gpt-4",
                 messages=[
                     {
@@ -282,9 +272,7 @@ def upload_file():
         class_feedback=class_feedback
     )
 
-###############################################
-# Run the Flask Application
-###############################################
+# Run Flask App
 if __name__ == '__main__':
     port = int(os.getenv("PORT", 5000))
     print(f"Flask is starting on port {port}...")
