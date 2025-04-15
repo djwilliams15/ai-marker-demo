@@ -13,6 +13,8 @@ import base64
 from azure.communication.email import EmailClient
 from werkzeug.utils import secure_filename
 
+print("🔍 ENV TEST - ACS_EMAIL_CONNECTION_STRING:", os.environ.get("ACS_EMAIL_CONNECTION_STRING", "MISSING"))
+
 # 🔍 DEBUG: Print key environment variables to verify they’re loading (remove in production)
 print("🔍 OPENAI_API_KEY:", os.getenv("OPENAI_API_KEY"))
 print("🔍 ACS_EMAIL_CONNECTION_STRING:", os.getenv("ACS_EMAIL_CONNECTION_STRING"))
