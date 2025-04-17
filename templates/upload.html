@@ -19,7 +19,8 @@
         input[type="text"],
         input[type="email"],
         select,
-        input[type="file"] {
+        input[type="file"],
+        textarea {
             width: 100%;
             padding: 8px;
             box-sizing: border-box;
@@ -79,12 +80,24 @@
         <label for="student_files">Upload student responses (PDFs):</label>
         <input type="file" name="student_files" id="student_files" multiple required>
       
+        <!-- Email input will be optional based on selection -->
         <label for="teacher_email">Your Email Address:</label>
-        <input type="email" name="teacher_email" id="teacher_email" required>
+        <input type="email" name="teacher_email" id="teacher_email" placeholder="Enter your email">
       
-        <label for="additional_info"><strong>Additional Instructions / Information:</strong></label><br>
-        <textarea name="additional_info" id="additional_info" rows="5" cols="50" placeholder="Enter any extra details about the assessment here..."></textarea>
-        <br><br>
+        <label for="additional_info"><strong>Additional Instructions / Information:</strong></label>
+        <textarea name="additional_info" id="additional_info" rows="5" placeholder="Enter any extra details about the assessment here..."></textarea>
+        
+        <!-- DELIVERY OPTIONS -->
+        <label><strong>How would you like to receive feedback?</strong></label>
+        <div>
+          <input type="checkbox" id="del_web" name="delivery_option" value="website" checked>
+          <label for="del_web">View feedback on website</label>
+        </div>
+        <div>
+          <input type="checkbox" id="del_email" name="delivery_option" value="email">
+          <label for="del_email">Send feedback via email</label>
+        </div>
+        <br>
 
         <input type="submit" value="Upload and Mark">
     </form>
@@ -97,46 +110,71 @@
     <!-- Completion message -->
     <div id="uploadComplete">
         <h2>Upload Complete!</h2>
-        <p>Your files have been uploaded and processed. Please check your email for the results.</p>
+        <p id="completeMessage">Your files have been uploaded and processed.</p>
     </div>
     
     <script>
+        // Toggle email required when checkbox changes
+        const emailInput = document.getElementById('teacher_email');
+        const emailCheckbox = document.getElementById('del_email');
+        const webCheckbox = document.getElementById('del_web');
+
+        function updateEmailRequirement() {
+            emailInput.required = emailCheckbox.checked;
+        }
+        emailCheckbox.addEventListener('change', updateEmailRequirement);
+        document.addEventListener('DOMContentLoaded', updateEmailRequirement);
+
         document.getElementById('uploadForm').addEventListener('submit', function(e) {
-            e.preventDefault(); // Prevent the default form submission
+            const wantWeb = webCheckbox.checked;
+            const wantEmail = emailCheckbox.checked;
 
-            var form = e.target;
-            var formData = new FormData(form);
+            // Must select at least one
+            if (!wantWeb && !wantEmail) {
+                e.preventDefault();
+                alert('Please select at least one delivery option.');
+                return;
+            }
 
-            // Create a new XMLHttpRequest
-            var xhr = new XMLHttpRequest();
+            // If website chosen, proceed with full page submit for online feedback
+            if (wantWeb) {
+                return; // default browser submit
+            }
+
+            // Otherwise (email only), use AJAX and show completion message
+            e.preventDefault();
+            const form = e.target;
+            const formData = new FormData(form);
+            const xhr = new XMLHttpRequest();
             xhr.open(form.method, form.action, true);
 
-            // Show the progress bar
-            var progressBar = document.getElementById('progressBar');
-            progressBar.style.display = "block";
-            var progressBarFill = progressBar.firstElementChild;
+            // Show progress bar
+            const progressBar = document.getElementById('progressBar');
+            const progressBarFill = progressBar.firstElementChild;
+            progressBar.style.display = 'block';
 
-            // Update the progress bar as the file uploads
-            xhr.upload.addEventListener("progress", function(evt) {
+            xhr.upload.addEventListener('progress', function(evt) {
                 if (evt.lengthComputable) {
-                    var percentComplete = Math.round((evt.loaded / evt.total) * 100);
+                    const percentComplete = Math.round((evt.loaded / evt.total) * 100);
                     progressBarFill.style.width = percentComplete + '%';
                     progressBarFill.textContent = percentComplete + '%';
                 }
             }, false);
 
-            // When the upload is complete, update the page
             xhr.onreadystatechange = function() {
-                if (xhr.readyState === 4) { // Request is complete
-                    // Hide the form and progress bar
-                    form.style.display = "none";
-                    progressBar.style.display = "none";
-                    // Show the "upload complete" message
-                    document.getElementById('uploadComplete').style.display = "block";
+                if (xhr.readyState === 4) {
+                    // Hide form and progress bar
+                    form.style.display = 'none';
+                    progressBar.style.display = 'none';
+                    // Show dynamic completion message
+                    const completeMsg = document.getElementById('completeMessage');
+                    completeMsg.textContent = wantEmail ?
+                        'Your feedback is being emailed to you.' :
+                        'Your files have been uploaded and processed.';
+                    document.getElementById('uploadComplete').style.display = 'block';
                 }
             };
 
-            // Send the form data using AJAX
             xhr.send(formData);
         });
     </script>
