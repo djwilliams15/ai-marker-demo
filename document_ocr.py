@@ -1,27 +1,25 @@
-import os
 from azure.ai.formrecognizer import DocumentAnalysisClient
 from azure.core.credentials import AzureKeyCredential
 
-# Load your Azure credentials from environment variables
-AZURE_FORM_ENDPOINT = os.getenv("AZURE_FORM_ENDPOINT")
-AZURE_FORM_KEY = os.getenv("AZURE_FORM_KEY")
-
-def extract_text_with_document_intelligence(file_path):
-    if not AZURE_FORM_ENDPOINT or not AZURE_FORM_KEY:
+def extract_text_with_document_intelligence(pdf_path, endpoint, key):
+    if not endpoint or not key:
         raise Exception("Azure Document Intelligence credentials not found.")
 
+    # Create client
     client = DocumentAnalysisClient(
-        endpoint=AZURE_FORM_ENDPOINT,
-        credential=AzureKeyCredential(AZURE_FORM_KEY)
+        endpoint=endpoint,
+        credential=AzureKeyCredential(key)
     )
 
-    with open(file_path, "rb") as f:
-        poller = client.begin_analyze_document("prebuilt-read", document=f)
+    # Read and analyse PDF
+    with open(pdf_path, "rb") as f:
+        poller = client.begin_analyze_document("prebuilt-document", f)
         result = poller.result()
 
-    lines = []
+    # Extract all text
+    extracted_text = ""
     for page in result.pages:
         for line in page.lines:
-            lines.append(line.content)
+            extracted_text += line.content + "\n"
 
-    return "\n".join(lines)
+    return extracted_text.strip()
