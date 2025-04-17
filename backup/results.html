@@ -37,6 +37,9 @@
 <body>
     <h1>AI Marking Results</h1>
 
+    <p><strong>Subject:</strong> {{ subject }}</p>
+    <p><strong>Exam Board:</strong> {{ exam_board }}</p>
+
     {% if markscheme_text %}
         <h2>Mark Scheme Used</h2>
         <pre>{{ markscheme_text }}</pre>
@@ -58,5 +61,12 @@
             </div>
         </div>
     {% endfor %}
+    
+    <hr>
+    <h2>Class Summary</h2>
+    <p><strong>Class Average:</strong> {{ class_average }}%</p>
+    <pre>{{ class_feedback }}</pre>
+    
+    <a href="/">Mark another set of papers</a>
 </body>
 </html>
