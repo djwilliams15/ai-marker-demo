@@ -10,9 +10,9 @@ import base64
 from azure.communication.email import EmailClient
 from werkzeug.utils import secure_filename
 
-# New imports for Azure Document Intelligence SDK
+# Switch to the Form Recognizer SDK
 from azure.core.credentials import AzureKeyCredential
-from azure.ai.documentintelligence import DocumentIntelligenceClient
+from azure.ai.formrecognizer import DocumentAnalysisClient
 
 # Load environment variables from Azure App Settings
 acs_email_connection_string = os.getenv("ACS_EMAIL_CONNECTION_STRING")
@@ -29,9 +29,9 @@ print(f"[startup] OCR Key present: {bool(azure_ocr_key)}")
 # Configure OpenAI
 openai.api_key = openai_api_key
 
-# Configure Document Intelligence client
+# Configure Form Recognizer client
 credential = AzureKeyCredential(azure_ocr_key)
-doc_client = DocumentIntelligenceClient(azure_ocr_endpoint, credential)
+doc_client = DocumentAnalysisClient(azure_ocr_endpoint, credential)
 
 # Flask app setup
 app = Flask(__name__)
@@ -125,7 +125,7 @@ def save_class_summary_pdf(filename, class_feedback, class_average):
     c.save()
     return path
 
-# OCR text extraction using Document Intelligence SDK
+# OCR text extraction using Form Recognizer SDK
 def extract_text(pdf_path):
     try:
         with open(pdf_path, "rb") as f:
