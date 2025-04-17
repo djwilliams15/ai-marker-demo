@@ -13,6 +13,7 @@ from werkzeug.utils import secure_filename
 # Fallback imports for Azure Form Recognizer SDK
 from azure.core.credentials import AzureKeyCredential
 from azure.ai.formrecognizer import DocumentAnalysisClient
+from azure.ai.documentintelligence.models import AnalyzeDocumentRequest
 
 # Load environment variables from Azure App Settings
 acs_email_connection_string = os.getenv("ACS_EMAIL_CONNECTION_STRING")
