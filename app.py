@@ -2,7 +2,6 @@ import os
 import fitz  # PyMuPDF for PDF processing
 from PIL import Image
 from flask import Flask, render_template, request, send_from_directory
-from document_ocr import extract_text_with_document_intelligence
 import openai
 import re
 from reportlab.lib.pagesizes import A4
@@ -11,6 +10,10 @@ import base64
 from azure.communication.email import EmailClient
 from werkzeug.utils import secure_filename
 
+# Fallback imports for Azure Form Recognizer SDK
+from azure.core.credentials import AzureKeyCredential
+from azure.ai.formrecognizer import DocumentAnalysisClient
+
 # Load environment variables from Azure App Settings
 acs_email_connection_string = os.getenv("ACS_EMAIL_CONNECTION_STRING")
 smtp_sender_email = os.getenv("SMTP_SENDER_EMAIL")
@@ -18,12 +21,16 @@ azure_ocr_endpoint = os.getenv("AZURE_OCR_ENDPOINT")
 azure_ocr_key = os.getenv("AZURE_OCR_KEY")
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
-# at the top of your app.py, after loading env vars
+# Debugging: verify env vars
 print("OCR Endpoint:", azure_ocr_endpoint)
 print("OCR Key present:", bool(azure_ocr_key))
 
 # Configure OpenAI
 openai.api_key = openai_api_key
+
+# Configure Form Recognizer client
+credential = AzureKeyCredential(azure_ocr_key)
+doc_client = DocumentAnalysisClient(azure_ocr_endpoint, credential)
 
 # Flask app setup
 app = Flask(__name__)
@@ -117,10 +124,19 @@ def save_class_summary_pdf(filename, class_feedback, class_average):
     c.save()
     return path
 
-# OCR text extraction using Azure Document Intelligence
+# OCR text extraction using Form Recognizer SDK
 def extract_text(pdf_path):
     try:
-        return extract_text_with_document_intelligence(pdf_path, azure_ocr_endpoint, azure_ocr_key)
+        with open(pdf_path, "rb") as f:
+            poller = doc_client.begin_analyze_document("prebuilt-document", f)
+            result = poller.result()
+
+        lines = []
+        for page in result.pages:
+            for line in page.lines:
+                lines.append(line.content)
+        return "\n".join(lines)
+
     except Exception as e:
         print("OCR failed:", e)
         raise
@@ -132,7 +148,6 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    # Validate files
     if 'markscheme_file' not in request.files or 'student_files' not in request.files:
         return 'Mark scheme and at least one student file are required.', 400
 
@@ -141,14 +156,13 @@ def upload_file():
     teacher_email = request.form.get('teacher_email')
     additional_info = request.form.get('additional_info')
 
-    # New: delivery options
     delivery_options = request.form.getlist('delivery_option')
     view_on_site = 'website' in delivery_options
     send_email_flag = 'email' in delivery_options
     if not (view_on_site or send_email_flag):
         return 'Please select at least one delivery option.', 400
 
-    # Save mark scheme
+    # OCR mark scheme
     markscheme = request.files['markscheme_file']
     ms_filename = secure_filename(markscheme.filename)
     ms_path = os.path.join(UPLOAD_FOLDER, ms_filename)
@@ -182,19 +196,20 @@ def upload_file():
             )
             fb = response.choices[0].message.content
             all_feedback.append(fb)
+
             pdf_name = f"{os.path.splitext(name)[0]}_feedback.pdf"
             save_feedback_pdf(pdf_name, name, fb)
 
             m = re.search(r"Mark:\s*(\d+)\s*/\s*(\d+)", fb)
             marks.append(round(int(m.group(1)) / int(m.group(2)) * 100) if m else None)
+
         except Exception as e:
             fb = f"Error generating feedback: {e}"
             marks.append(None)
 
         results.append({'filename': name, 'student_text': student_text, 'feedback': fb})
 
-    # Class summary
-    class_average = round(sum([m for m in marks if m is not None]) / max(len([m for m in marks if m is not None]),1),1)
+    class_average = round(sum([m for m in marks if m is not None]) / max(len([m for m in marks if m is not None]), 1), 1)
     try:
         summ = openai.ChatCompletion.create(
             model="gpt-4",
@@ -209,10 +224,8 @@ def upload_file():
 
     save_class_summary_pdf("class_summary.pdf", class_feedback, class_average)
 
-    # Optionally send email
     if send_email_flag:
-        attachments = [os.path.join(UPLOAD_FOLDER, f"{os.path.splitext(r['filename'])[0]}_feedback.pdf") for r in results]
-        attachments.append(os.path.join(UPLOAD_FOLDER, "class_summary.pdf"))
+        attachments = [os.path.join(UPLOAD_FOLDER, f"{os.path.splitext(r['filename'])[0]}_feedback.pdf") for r in results] + [os.path.join(UPLOAD_FOLDER, "class_summary.pdf")]
         send_email_with_attachments_acs(
             teacher_email,
             "Your AI Marking Results",
@@ -220,7 +233,6 @@ def upload_file():
             attachments
         )
 
-    # Optionally render on-site
     if view_on_site:
         return render_template(
             'results.html',
@@ -232,7 +244,6 @@ def upload_file():
             class_feedback=class_feedback
         )
     else:
-        # Email–only confirmation (handled via AJAX on the front end)
         return """
             <h2>Feedback is being emailed to you.</h2>
             <p>Thank you! You’ll receive your results shortly.</p>
