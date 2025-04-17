@@ -1,6 +1,6 @@
 import os
 import fitz  # PyMuPDF for PDF processing
-import pytesseract
+#import pytesseract
 from PIL import Image
 from flask import Flask, render_template, request
 # from dotenv import load_dotenv  # Disabled in production
@@ -24,9 +24,12 @@ port = os.getenv("PORT")
 scm_do_build_during_deployment = os.getenv("SCM_DO_BUILD_DURING_DEPLOYMENT")
 smtp_sender_email = os.getenv("SMTP_SENDER_EMAIL")
 
+print("🧪 DEBUG - AZURE_OCR_KEY:", "Set" if azure_ocr_key else "Missing")
+print("🧪 DEBUG - AZURE_OCR_ENDPOINT:", azure_ocr_endpoint if azure_ocr_endpoint else "Missing")
+
 
 # Configure Tesseract (update the path if necessary)
-pytesseract.pytesseract.tesseract_cmd = r"C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
+#pytesseract.pytesseract.tesseract_cmd = r"C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
 
 # Initialize Flask app and set the upload folder
 app = Flask(__name__)
@@ -128,7 +131,7 @@ def save_class_summary_pdf(filename, class_feedback, class_average):
     return pdf_path
 
 # OCR with Fallback
-def extract_text(pdf_path):
+#def extract_text(pdf_path):
     try:
         print(f"Using Azure Document Intelligence on: {pdf_path}")
         return extract_text_with_document_intelligence(pdf_path)
