@@ -1,9 +1,9 @@
 import os
 import fitz  # PyMuPDF for PDF processing
-#import pytesseract
+#from pytesseract import image_to_string  # Commented out for Azure
 from PIL import Image
 from flask import Flask, render_template, request
-# from dotenv import load_dotenv  # Disabled in production
+#from dotenv import load_dotenv  # Not used on Azure
 from document_ocr import extract_text_with_document_intelligence
 import openai
 import re
@@ -13,7 +13,7 @@ import base64
 from azure.communication.email import EmailClient
 from werkzeug.utils import secure_filename
 
-# Get environment variables from Azure App Service
+# Get environment variables
 acs_email_connection_string = os.getenv("ACS_EMAIL_CONNECTION_STRING")
 azure_form_key = os.getenv("AZURE_FORM_KEY")
 azure_ocr_endpoint = os.getenv("AZURE_OCR_ENDPOINT")
@@ -24,14 +24,12 @@ port = os.getenv("PORT")
 scm_do_build_during_deployment = os.getenv("SCM_DO_BUILD_DURING_DEPLOYMENT")
 smtp_sender_email = os.getenv("SMTP_SENDER_EMAIL")
 
-print("🧪 DEBUG - AZURE_OCR_KEY:", "Set" if azure_ocr_key else "Missing")
-print("🧪 DEBUG - AZURE_OCR_ENDPOINT:", azure_ocr_endpoint if azure_ocr_endpoint else "Missing")
+# Debug print to check Azure environment
+print("\n🔧 ENV CHECK")
+print("AZURE_OCR_ENDPOINT:", "Set" if azure_ocr_endpoint else "Missing")
+print("AZURE_OCR_KEY:", "Set" if azure_ocr_key else "Missing")
 
-
-# Configure Tesseract (update the path if necessary)
-#pytesseract.pytesseract.tesseract_cmd = r"C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
-
-# Initialize Flask app and set the upload folder
+# Flask app setup
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -39,26 +37,18 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
-# Email Sending Function
+# Email function
+
 def send_email_with_attachments_acs(to_email, subject, body, attachments):
-    connection_string = os.getenv("ACS_EMAIL_CONNECTION_STRING")
-    if not connection_string:
-        print("ACS_EMAIL_CONNECTION_STRING not set in environment")
+    if not acs_email_connection_string:
+        print("ACS_EMAIL_CONNECTION_STRING not set")
         return
 
-    client = EmailClient.from_connection_string(connection_string)
-
+    client = EmailClient.from_connection_string(acs_email_connection_string)
     email_payload = {
-        "senderAddress": os.getenv("SMTP_SENDER_EMAIL"),
-        "content": {
-            "subject": subject,
-            "plainText": body
-        },
-        "recipients": {
-            "to": [
-                {"address": to_email}
-            ]
-        }
+        "senderAddress": smtp_sender_email,
+        "content": {"subject": subject, "plainText": body},
+        "recipients": {"to": [{"address": to_email}]}
     }
 
     if attachments:
@@ -67,30 +57,30 @@ def send_email_with_attachments_acs(to_email, subject, body, attachments):
             try:
                 with open(filepath, "rb") as f:
                     file_data = f.read()
-                encoded_content = base64.b64encode(file_data).decode("utf-8")
+                encoded = base64.b64encode(file_data).decode("utf-8")
                 attachment_list.append({
                     "name": os.path.basename(filepath),
-                    "contentInBase64": encoded_content,
+                    "contentInBase64": encoded,
                     "contentType": "application/pdf"
                 })
             except Exception as e:
-                print(f"Failed to attach file {filepath}: {e}")
+                print(f"Failed to attach {filepath}: {e}")
         if attachment_list:
             email_payload["attachments"] = attachment_list
 
     try:
         poller = client.begin_send(email_payload)
         result = poller.result()
-        print("✅ Email sent successfully via ACS. Result:", result)
+        print("✅ Email sent successfully via ACS:", result)
     except Exception as e:
-        print("❌ Failed to send email via ACS:", e)
+        print("❌ Email send failed:", e)
 
-# PDF Generation for Feedback
+# Generate feedback PDF
+
 def save_feedback_pdf(filename, student_name, feedback):
-    pdf_path = os.path.join(UPLOAD_FOLDER, filename)
-    c = canvas.Canvas(pdf_path, pagesize=A4)
+    path = os.path.join(UPLOAD_FOLDER, filename)
+    c = canvas.Canvas(path, pagesize=A4)
     width, height = A4
-
     c.setFont("Helvetica-Bold", 14)
     c.drawString(50, height - 50, f"Feedback for: {student_name}")
 
@@ -104,17 +94,16 @@ def save_feedback_pdf(filename, student_name, feedback):
         y -= 15
 
     c.save()
-    return pdf_path
+    return path
 
-# PDF Generation for Class Summary
+# Generate class summary PDF
+
 def save_class_summary_pdf(filename, class_feedback, class_average):
-    pdf_path = os.path.join(UPLOAD_FOLDER, filename)
-    c = canvas.Canvas(pdf_path, pagesize=A4)
+    path = os.path.join(UPLOAD_FOLDER, filename)
+    c = canvas.Canvas(path, pagesize=A4)
     width, height = A4
-
     c.setFont("Helvetica-Bold", 16)
     c.drawString(50, height - 50, "Class Summary")
-
     c.setFont("Helvetica", 12)
     y = height - 80
     c.drawString(50, y, f"Class Average: {class_average}%")
@@ -128,25 +117,21 @@ def save_class_summary_pdf(filename, class_feedback, class_average):
         y -= 15
 
     c.save()
-    return pdf_path
+    return path
 
-# OCR with Fallback
-#def extract_text(pdf_path):
+# Text extraction with Azure OCR only
+
+def extract_text(pdf_path):
     try:
         print(f"Using Azure Document Intelligence on: {pdf_path}")
-        return extract_text_with_document_intelligence(pdf_path)
+        return extract_text_with_document_intelligence(pdf_path, azure_ocr_endpoint, azure_ocr_key)
     except Exception as e:
-        print("Document Intelligence failed, falling back to local OCR.")
+        print("Document Intelligence failed.")
         print("Error:", e)
-        text = ""
-        with fitz.open(pdf_path) as doc:
-            for page in doc:
-                pix = page.get_pixmap(dpi=400)
-                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-                text += pytesseract.image_to_string(img)
-        return text.strip()
+        raise Exception("OCR failed and no fallback available on Azure.")
 
-# Flask Routes
+# Flask routes
+
 @app.route('/')
 def index():
     return render_template('upload.html')
@@ -171,9 +156,7 @@ def upload_file():
     markscheme_file.save(markscheme_path)
     markscheme_text = extract_text(markscheme_path)
 
-    results = []
-    marks = []
-    all_feedback = []
+    results, marks, all_feedback = [], [], []
 
     for student_file in student_files:
         student_filename = secure_filename(student_file.filename)
@@ -185,44 +168,26 @@ def upload_file():
             response = openai.ChatCompletion.create(
                 model="gpt-4",
                 messages=[
-                    {
-                        "role": "system",
-                        "content": f"You are an experienced {exam_board} {subject} examiner. Only use the mark scheme to award marks. Be precise, fair, and consistent."
-                    },
-                    {
-                        "role": "user",
-                        "content": (
-                            "Mark the student's work below using only the mark scheme.\n\n"
-                            f"Mark Scheme:\n{markscheme_text}\n\n"
-                            f"Additional Instructions:\n{additional_info}\n\n"
-                            f"Student Response:\n{student_text}\n\n"
-                            "Instructions:\n"
-                            "- First, state the total mark awarded (e.g. 'Mark: 5/6').\n"
-                            "- Then provide feedback under the following headings:\n"
-                            "  • What went well\n"
-                            "  • Targets for improvement\n"
-                            "  • Misconceptions or incorrect answers\n\n"
-                            "Format your response like this:\n"
-                            "Mark: __/__ \n\n"
-                            "What went well:\n- ...\n\n"
-                            "Targets for improvement:\n- ...\n\n"
-                            "Misconceptions or incorrect answers:\n- ...\n\n"
-                            "Be concise and use bullet points. Only use mark scheme content to justify marks."
-                        )
-                    }
+                    {"role": "system", "content": f"You are an experienced {exam_board} {subject} examiner. Only use the mark scheme to award marks."},
+                    {"role": "user", "content": (
+                        f"Mark Scheme:\n{markscheme_text}\n\n"
+                        f"Additional Instructions:\n{additional_info}\n\n"
+                        f"Student Response:\n{student_text}\n\n"
+                        "Instructions:\n- First, state the total mark awarded (e.g. 'Mark: 5/6').\n"
+                        "- Then provide feedback under the following headings:\n  • What went well\n  • Targets for improvement\n  • Misconceptions or incorrect answers\n\n"
+                        "Format your response like this:\nMark: __/__ \n\nWhat went well:\n- ...\n\nTargets for improvement:\n- ...\n\nMisconceptions or incorrect answers:\n- ..."
+                    )}
                 ],
                 temperature=0.0
             )
-
             feedback = response.choices[0].message.content
             all_feedback.append(feedback)
             pdf_filename = f"{os.path.splitext(student_file.filename)[0]}_feedback.pdf"
             pdf_path = save_feedback_pdf(pdf_filename, student_file.filename, feedback)
 
-            mark_match = re.search(r"Mark:\s*(\d+)\s*/\s*(\d+)", feedback)
-            if mark_match:
-                score = int(mark_match.group(1))
-                out_of = int(mark_match.group(2))
+            match = re.search(r"Mark:\s*(\d+)\s*/\s*(\d+)", feedback)
+            if match:
+                score, out_of = int(match.group(1)), int(match.group(2))
                 percent = round((score / out_of) * 100)
                 marks.append(percent)
             else:
@@ -256,7 +221,6 @@ def upload_file():
     class_average = round(sum(valid_marks) / len(valid_marks), 1) if valid_marks else "N/A"
 
     class_summary_pdf = save_class_summary_pdf("class_summary.pdf", class_feedback, class_average)
-
     feedback_pdfs = [os.path.join(UPLOAD_FOLDER, f"{os.path.splitext(r['filename'])[0]}_feedback.pdf") for r in results]
     feedback_pdfs.append(class_summary_pdf)
 
@@ -277,7 +241,6 @@ def upload_file():
         class_feedback=class_feedback
     )
 
-# Run Flask App
 if __name__ == '__main__':
     port = int(os.getenv("PORT", 5000))
     print(f"Flask is starting on port {port}...")
