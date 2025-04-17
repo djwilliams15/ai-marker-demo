@@ -16,17 +16,15 @@ from azure.ai.formrecognizer import DocumentAnalysisClient
 
 # Load environment variables from Azure App Settings
 acs_email_connection_string = os.getenv("ACS_EMAIL_CONNECTION_STRING")
-smtp_sender_email = os.getenv("SMTP_SENDER_EMAIL")
-azure_ocr_endpoint = os.getenv("AZURE_OCR_ENDPOINT")
-azure_ocr_key = os.getenv("AZURE_OCR_KEY")
-openai_api_key = os.getenv("OPENAI_API_KEY")
+smtp_sender_email            = os.getenv("SMTP_SENDER_EMAIL")
+azure_ocr_endpoint           = os.getenv("AZURE_OCR_ENDPOINT", "")
+azure_ocr_key                = os.getenv("AZURE_OCR_KEY")
+openai_api_key               = os.getenv("OPENAI_API_KEY")
 
-print("OCR Endpoint:", azure_ocr_endpoint)
-print("OCR Key present:", bool(azure_ocr_key))
-
-# Debugging: verify env vars
-print("OCR Endpoint:", azure_ocr_endpoint)
-print("OCR Key present:", bool(azure_ocr_key))
+# Normalize and log startup values
+azure_ocr_endpoint = azure_ocr_endpoint.rstrip("/")
+print(f"[startup] OCR Endpoint: '{azure_ocr_endpoint}'")
+print(f"[startup] OCR Key present: {bool(azure_ocr_key)}")
 
 # Configure OpenAI
 openai.api_key = openai_api_key
