@@ -13,15 +13,17 @@ import base64
 from azure.communication.email import EmailClient
 from werkzeug.utils import secure_filename
 
-print("🔍 ENV TEST - ACS_EMAIL_CONNECTION_STRING:", os.environ.get("ACS_EMAIL_CONNECTION_STRING", "MISSING"))
+# Get environment variables from Azure App Service
+acs_email_connection_string = os.getenv("ACS_EMAIL_CONNECTION_STRING")
+azure_form_key = os.getenv("AZURE_FORM_KEY")
+azure_ocr_endpoint = os.getenv("AZURE_OCR_ENDPOINT")
+azure_ocr_key = os.getenv("AZURE_OCR_KEY")
+azure_openai_api_key = os.getenv("AZURE_OPENAI_API_KEY")
+openai_api_key = os.getenv("OPENAI_API_KEY")
+port = os.getenv("PORT")
+scm_do_build_during_deployment = os.getenv("SCM_DO_BUILD_DURING_DEPLOYMENT")
+smtp_sender_email = os.getenv("SMTP_SENDER_EMAIL")
 
-# 🔍 DEBUG: Print key environment variables to verify they’re loading (remove in production)
-print("🔍 OPENAI_API_KEY:", os.getenv("OPENAI_API_KEY"))
-print("🔍 ACS_EMAIL_CONNECTION_STRING:", os.getenv("ACS_EMAIL_CONNECTION_STRING"))
-print("🔍 SMTP_SENDER_EMAIL:", os.getenv("SMTP_SENDER_EMAIL"))
-
-# Set up OpenAI using your key
-openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Configure Tesseract (update the path if necessary)
 pytesseract.pytesseract.tesseract_cmd = r"C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
