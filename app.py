@@ -18,6 +18,10 @@ azure_ocr_endpoint = os.getenv("AZURE_OCR_ENDPOINT")
 azure_ocr_key = os.getenv("AZURE_OCR_KEY")
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
+# at the top of your app.py, after loading env vars
+print("OCR Endpoint:", azure_ocr_endpoint)
+print("OCR Key present:", bool(azure_ocr_key))
+
 # Configure OpenAI
 openai.api_key = openai_api_key
 
