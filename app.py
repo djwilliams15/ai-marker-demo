@@ -21,6 +21,9 @@ azure_ocr_endpoint = os.getenv("AZURE_OCR_ENDPOINT")
 azure_ocr_key = os.getenv("AZURE_OCR_KEY")
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
+print("OCR Endpoint:", azure_ocr_endpoint)
+print("OCR Key present:", bool(azure_ocr_key))
+
 # Debugging: verify env vars
 print("OCR Endpoint:", azure_ocr_endpoint)
 print("OCR Key present:", bool(azure_ocr_key))
