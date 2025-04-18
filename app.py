@@ -2,7 +2,7 @@ import os
 import fitz  # PyMuPDF for PDF processing
 from PIL import Image
 from flask import Flask, render_template, request, send_from_directory
-import openai import openAI
+from openai import OpenAI
 import re
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
@@ -202,14 +202,14 @@ def upload_file():
     valid_marks = [m for m in marks if m is not None]
     class_average = round(sum(valid_marks)/max(len(valid_marks),1), 1)
     try:
-        summ = client.chat.completions.create(
+        summ_resp = client.chat.completions.create(
             model="gpt-4",
             messages=[
                 {"role":"system","content":"You are a teaching assistant. Summarise trends in feedback."},
                 {"role":"user","content": "\n\n".join(all_feedback) + "\n\nSummarise key points."}
             ]
         )
-        class_feedback = client.chat.completions.create(
+        class_feedback = summ_resp.choices[0].message.content
     except Exception as e:
         class_feedback = f"Class summary error: {e}"
 
