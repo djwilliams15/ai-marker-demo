@@ -2,16 +2,14 @@ name: CI/CD
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
-  build-and-test:
+  build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python 3.9
         uses: actions/setup-python@v4
@@ -23,7 +21,23 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run tests
-        run: |
-          # adjust if you use pytest or another test runner
-          pytest
+      # - name: Lint with flake8   # Uncomment if you add flake8
+      #   run: |
+      #     pip install flake8
+      #     flake8 .
+
+      # - name: Run tests         # Uncomment when you have tests
+      #   run: |
+      #     pytest
+
+      - name: Log in to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: insightmarker
+          slot-name: ''       # leave blank if no deployment slot
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
