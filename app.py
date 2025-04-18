@@ -202,7 +202,7 @@ def upload_file():
     valid_marks = [m for m in marks if m is not None]
     class_average = round(sum(valid_marks)/max(len(valid_marks),1), 1)
     try:
-        summ = openai.ChatCompletion.create(
+        summ = client.chat.completions.create(
             model="gpt-4",
             messages=[
                 {"role":"system","content":"You are a teaching assistant. Summarise trends in feedback."},
