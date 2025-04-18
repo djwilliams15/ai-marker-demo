@@ -3,8 +3,6 @@ PyMuPDF>=1.25.5
 Pillow
 reportlab>=4.3.1
 azure-core>=1.33.0
-azure-ai-formrecognizer==3.0.0
+azure-ai-formrecognizer>=3.3.0
 azure-communication-email>=1.0.0
 openai>=1.0.0
-azure-ai-documentintelligence>=1.2.0
-

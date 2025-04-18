@@ -10,12 +10,12 @@ from reportlab.pdfgen import canvas
 
 from openai import OpenAI
 from azure.core.credentials import AzureKeyCredential
-from azure.ai.documentintelligence import DocumentIntelligenceClient
+from azure.ai.formrecognizer import DocumentAnalysisClient
 from azure.communication.email import EmailClient
 
 # ─── Configuration ─────────────────────────────────────────────────────────────
 
-# Azure OCR / Document Intelligence
+# Azure Form Recognizer / Document Analysis
 AZURE_OCR_ENDPOINT = os.getenv("AZURE_OCR_ENDPOINT", "").rstrip("/")
 AZURE_OCR_KEY      = os.getenv("AZURE_OCR_KEY")
 
@@ -41,12 +41,12 @@ print(f"[startup] OpenAI Key present: {bool(OPENAI_API_KEY)}")
 
 # ─── Client Initialization ────────────────────────────────────────────────────
 
-# Azure Document Intelligence client
-di_credential = AzureKeyCredential(AZURE_OCR_KEY)
-doc_client    = DocumentIntelligenceClient(AZURE_OCR_ENDPOINT, di_credential)
+# Azure Form Recognizer client
+fr_credential = AzureKeyCredential(AZURE_OCR_KEY)
+doc_client   = DocumentAnalysisClient(AZURE_OCR_ENDPOINT, fr_credential)
 
 # OpenAI client (new 1.x interface)
-ai_client     = OpenAI(api_key=OPENAI_API_KEY)
+ai_client    = OpenAI(api_key=OPENAI_API_KEY)
 
 # ─── Flask App Setup ───────────────────────────────────────────────────────────
 
@@ -58,7 +58,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 # ─── Utility Functions ────────────────────────────────────────────────────────
 
 def extract_text(pdf_path: str) -> str:
-    """Run Azure Document Intelligence prebuilt-document OCR and return all lines."""
+    """Run Azure Form Recognizer prebuilt-document analysis and return all lines."""
     with open(pdf_path, "rb") as f:
         poller = doc_client.begin_analyze_document("prebuilt-document", f)
         result = poller.result()
@@ -172,9 +172,9 @@ def upload_file():
     ms.save(ms_path)
     markscheme_text = extract_text(ms_path)
 
-    results     = []
-    marks       = []
-    all_feedback= []
+    results      = []
+    marks        = []
+    all_feedback = []
 
     # Process each student file
     for f in request.files.getlist("student_files"):
