@@ -5,4 +5,4 @@ reportlab
 azure-core
 azure-ai-formrecognizer==3.3.3
 azure-communication-email
-openai
+openai>=1.0.0

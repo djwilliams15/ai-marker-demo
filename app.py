@@ -2,7 +2,7 @@ import os
 import fitz  # PyMuPDF for PDF processing
 from PIL import Image
 from flask import Flask, render_template, request, send_from_directory
-import openai
+import openai import openAI
 import re
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
@@ -16,10 +16,10 @@ from azure.ai.formrecognizer import DocumentAnalysisClient
 
 # Load environment variables
 acs_email_connection_string = os.getenv("ACS_EMAIL_CONNECTION_STRING")
-smtp_sender_email            = os.getenv("SMTP_SENDER_EMAIL")
-azure_ocr_endpoint           = os.getenv("AZURE_OCR_ENDPOINT", "").rstrip("/")
-azure_ocr_key                = os.getenv("AZURE_OCR_KEY")
-openai.api_key               = os.getenv("OPENAI_API_KEY")
+smtp_sender_email           = os.getenv("SMTP_SENDER_EMAIL")
+azure_ocr_endpoint          = os.getenv("AZURE_OCR_ENDPOINT", "").rstrip("/")
+azure_ocr_key               = os.getenv("AZURE_OCR_KEY")
+client                      = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # Startup logging
 print(f"[startup] OCR Endpoint: '{azure_ocr_endpoint}'")
@@ -163,7 +163,7 @@ def upload_file():
 
         # Call OpenAI to mark & give feedback
         try:
-            resp = openai.ChatCompletion.create(
+            resp = client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role":"system", "content":
@@ -209,7 +209,7 @@ def upload_file():
                 {"role":"user","content": "\n\n".join(all_feedback) + "\n\nSummarise key points."}
             ]
         )
-        class_feedback = summ.choices[0].message.content
+        class_feedback = client.chat.completions.create(
     except Exception as e:
         class_feedback = f"Class summary error: {e}"
 
