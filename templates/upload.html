@@ -1,3 +1,4 @@
+<!-- upload.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -11,10 +12,13 @@
         form {
             max-width: 600px;
         }
+        .form-group {
+            margin-top: 15px;
+        }
         label {
             font-weight: bold;
             display: block;
-            margin-top: 15px;
+            margin-bottom: 5px;
         }
         input[type="text"],
         input[type="email"],
@@ -24,7 +28,6 @@
             width: 100%;
             padding: 8px;
             box-sizing: border-box;
-            margin-top: 5px;
         }
         input[type="submit"] {
             margin-top: 20px;
@@ -57,47 +60,76 @@
 <body>
     <h1>Upload PDFs for AI Marking</h1>
     <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
-        <label for="subject">Choose a subject:</label>
-        <select name="subject" id="subject" required>
-          <option value="Physics">Physics</option>
-          <option value="Maths">Maths</option>
-          <option value="English">English</option>
-          <option value="History">History</option>
-          <option value="Geography">Geography</option>
-        </select>
-      
-        <label for="exam_board">Choose an exam board:</label>
-        <select name="exam_board" id="exam_board" required>
-          <option value="AQA">AQA</option>
-          <option value="Edexcel">Edexcel</option>
-          <option value="OCR">OCR</option>
-          <option value="WJEC">WJEC</option>
-        </select>
-      
-        <label for="markscheme_file">Upload mark scheme (PDF):</label>
-        <input type="file" name="markscheme_file" id="markscheme_file" required>
-      
-        <label for="student_files">Upload student responses (PDFs):</label>
-        <input type="file" name="student_files" id="student_files" multiple required>
-      
-        <!-- Email input will be optional based on selection -->
-        <label for="teacher_email">Your Email Address:</label>
-        <input type="email" name="teacher_email" id="teacher_email" placeholder="Enter your email">
-      
-        <label for="additional_info"><strong>Additional Instructions / Information:</strong></label>
-        <textarea name="additional_info" id="additional_info" rows="5" placeholder="Enter any extra details about the assessment here..."></textarea>
+
+        <div class="form-group">
+            <label for="level">Select Level</label>
+            <select name="level" id="level" class="form-control" required>
+              <option value="" disabled selected>Choose a level</option>
+              <option value="KS3">KS3</option>
+              <option value="GCSE">GCSE</option>
+              <option value="A level">A level</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+          <label for="subject">Choose a subject:</label>
+          <select name="subject" id="subject" required>
+            <option value="" disabled selected>Choose a subject</option>
+            <option value="Physics">Physics</option>
+            <option value="Maths">Maths</option>
+            <option value="English">English</option>
+            <option value="History">History</option>
+            <option value="Geography">Geography</option>
+            <option value="Biology">Biology</option>
+            <option value="Chemistry">Chemistry</option>
+            <option value="Computer Science">Computer Science</option>
+            <option value="Design and Technology">Design and Technology</option>
+            <option value="Art and Design">Art and Design</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="exam_board">Choose an exam board:</label>
+          <select name="exam_board" id="exam_board" required>
+            <option value="" disabled selected>Choose an exam board</option>
+            <option value="AQA">AQA</option>
+            <option value="Edexcel">Edexcel</option>
+            <option value="OCR">OCR</option>
+            <option value="WJEC">WJEC</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="markscheme_file">Upload mark scheme (PDF):</label>
+          <input type="file" name="markscheme_file" id="markscheme_file" required>
+        </div>
+
+        <div class="form-group">
+          <label for="student_files">Upload student responses (PDFs):</label>
+          <input type="file" name="student_files" id="student_files" multiple required>
+        </div>
+
+        <div class="form-group">
+          <label for="teacher_email">Your Email Address:</label>
+          <input type="email" name="teacher_email" id="teacher_email" placeholder="Enter your email">
+        </div>
+
+        <div class="form-group">
+          <label for="additional_info"><strong>Additional Instructions / Information:</strong></label>
+          <textarea name="additional_info" id="additional_info" rows="5" placeholder="Enter any extra details about the assessment here..."></textarea>
+        </div>
         
-        <!-- DELIVERY OPTIONS -->
-        <label><strong>How would you like to receive feedback?</strong></label>
-        <div>
-          <input type="checkbox" id="del_web" name="delivery_option" value="website" checked>
-          <label for="del_web">View feedback on website</label>
+        <div class="form-group">
+          <label><strong>How would you like to receive feedback?</strong></label>
+          <div>
+            <input type="checkbox" id="del_web" name="delivery_option" value="website" checked>
+            <label for="del_web">View feedback on website</label>
+          </div>
+          <div>
+            <input type="checkbox" id="del_email" name="delivery_option" value="email">
+            <label for="del_email">Send feedback via email</label>
+          </div>
         </div>
-        <div>
-          <input type="checkbox" id="del_email" name="delivery_option" value="email">
-          <label for="del_email">Send feedback via email</label>
-        </div>
-        <br>
 
         <input type="submit" value="Upload and Mark">
     </form>
