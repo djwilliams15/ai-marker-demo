@@ -1,9 +1,8 @@
-<!-- upload.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Upload Assessments for AI Marking</title>
+    <title>Upload PDFs for AI Marking</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -55,6 +54,14 @@
             margin-top: 20px;
             display: none;
         }
+        /* Styles for radio lists */
+        .radio-group div {
+            margin-top: 5px;
+        }
+        .radio-group label {
+            font-weight: normal;
+            display: inline;
+        }
     </style>
 </head>
 <body>
@@ -63,7 +70,7 @@
 
         <div class="form-group">
             <label for="level">Select Level</label>
-            <select name="level" id="level" class="form-control" required>
+            <select name="level" id="level" required>
               <option value="" disabled selected>Choose a level</option>
               <option value="KS3">KS3</option>
               <option value="GCSE">GCSE</option>
@@ -110,6 +117,11 @@
         </div>
 
         <div class="form-group">
+          <label for="marking_points_file">Upload Marking points (PDF, optional):</label>
+          <input type="file" name="marking_points_file" id="marking_points_file">
+        </div>
+        
+        <div class="form-group">
           <label for="teacher_email">Your Email Address:</label>
           <input type="email" name="teacher_email" id="teacher_email" placeholder="Enter your email">
         </div>
@@ -117,6 +129,21 @@
         <div class="form-group">
           <label for="additional_info"><strong>Additional Instructions / Information:</strong></label>
           <textarea name="additional_info" id="additional_info" rows="5" placeholder="Enter any extra details about the assessment here..."></textarea>
+        </div>
+
+        <!-- Feedback granularity option -->
+        <div class="form-group">
+          <label><strong>Feedback Granularity:</strong></label>
+          <div class="radio-group">
+            <div>
+              <input type="radio" id="gran_overall" name="feedback_detail" value="overall" checked>
+              <label for="gran_overall">Overall feedback</label>
+            </div>
+            <div>
+              <input type="radio" id="gran_parts" name="feedback_detail" value="parts">
+              <label for="gran_parts">Per-question-part feedback</label>
+            </div>
+          </div>
         </div>
         
         <div class="form-group">
@@ -168,19 +195,18 @@
                 return;
             }
 
-            // If website chosen, proceed with full page submit for online feedback
+            // If website chosen, proceed with full page submit
             if (wantWeb) {
-                return; // default browser submit
+                return;
             }
 
-            // Otherwise (email only), use AJAX and show completion message
+            // Email only: AJAX submit + progress
             e.preventDefault();
             const form = e.target;
             const formData = new FormData(form);
             const xhr = new XMLHttpRequest();
             xhr.open(form.method, form.action, true);
 
-            // Show progress bar
             const progressBar = document.getElementById('progressBar');
             const progressBarFill = progressBar.firstElementChild;
             progressBar.style.display = 'block';
@@ -195,10 +221,8 @@
 
             xhr.onreadystatechange = function() {
                 if (xhr.readyState === 4) {
-                    // Hide form and progress bar
                     form.style.display = 'none';
                     progressBar.style.display = 'none';
-                    // Show dynamic completion message
                     const completeMsg = document.getElementById('completeMessage');
                     completeMsg.textContent = wantEmail ?
                         'Your feedback is being emailed to you.' :

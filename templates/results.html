@@ -26,47 +26,58 @@
             flex: 1;
             border: 1px solid #ccc;
             padding: 10px;
-            white-space: pre-wrap;
             background-color: #f9f9f9;
         }
-        h3 {
+        h3, h4 {
             margin-top: 0;
+        }
+        pre, p {
+            white-space: pre-wrap;
         }
     </style>
 </head>
 <body>
     <h1>AI Marking Results</h1>
 
+    <p><strong>Level:</strong> {{ level }}</p>
     <p><strong>Subject:</strong> {{ subject }}</p>
     <p><strong>Exam Board:</strong> {{ exam_board }}</p>
 
     {% if markscheme_text %}
         <h2>Mark Scheme Used</h2>
-        <pre>{{ markscheme_text }}</pre>
+        <div>{{ markscheme_text | markdown | safe }}</div>
         <hr>
     {% endif %}
 
-    {% for result in results %}
+    <div class="container">
+      {% for result in results %}
         <div class="student-block">
-            <div class="filename">{{ result.filename }}</div>
-            <div class="side-by-side">
-                <div class="box">
-                    <h3>Student's Original Answer</h3>
-                    {{ result.student_text }}
-                </div>
-                <div class="box">
-                    <h3>AI Feedback</h3>
-                    {{ result.feedback }}
-                </div>
+          <div class="filename">{{ result.filename }}</div>
+          <div class="side-by-side">
+            <div class="box">
+              <h3>Student's Original Answer</h3>
+              <div>{{ result.student_text | markdown | safe }}</div>
             </div>
+            <div class="box">
+              <h3>AI Feedback</h3>
+              {% for part in result.parts %}
+                <h4>
+                  {{ part.question }}
+                  {% if part.awarded is not none and part.total is not none %}
+                    — {{ part.awarded }}/{{ part.total }}
+                  {% endif %}
+                </h4>
+                <p>{{ part.feedback }}</p>
+              {% endfor %}
+            </div>
+          </div>
         </div>
-    {% endfor %}
-    
+      {% endfor %}
+    </div>
+
     <hr>
     <h2>Class Summary</h2>
     <p><strong>Class Average:</strong> {{ class_average }}%</p>
     <pre>{{ class_feedback }}</pre>
-    
-
 </body>
 </html>
