@@ -1,402 +1,279 @@
-# app.py
 import os
-import re
 import base64
 import json
 from flask import Flask, render_template, request, send_from_directory
 from werkzeug.utils import secure_filename
 
-import fitz                           # PyMuPDF (optional OCR fallback)
-from PIL import Image                
+import fitz  # PyMuPDF (optional OCR fallback)
+from PIL import Image
 
-from fpdf import FPDF                # fpdf2 for wrapped PDF generation
-
+from fpdf import FPDF  # fpdf2 for PDF generation
 from openai import OpenAI
 from azure.core.credentials import AzureKeyCredential
-# top of app.py – extend the import line
 from azure.ai.formrecognizer import DocumentAnalysisClient, AnalysisFeature
-
 from azure.communication.email import EmailClient
 import traceback
 import markdown
-
 from dotenv import load_dotenv
-os.environ['FLASK_ENV'] = 'development'
 
-
-# ─── Load env ────────────────────────────────────────────────────────────────
-load_dotenv(".env.development")
-
-AZURE_OCR_ENDPOINT          = os.getenv("AZURE_OCR_ENDPOINT", "").rstrip("/")
-AZURE_OCR_KEY               = os.getenv("AZURE_OCR_KEY")
-OPENAI_API_KEY              = os.getenv("OPENAI_API_KEY")
-ACS_EMAIL_CONNECTION_STRING = os.getenv("ACS_EMAIL_CONNECTION_STRING")
-SMTP_SENDER_EMAIL           = os.getenv("SMTP_SENDER_EMAIL")
-
-if not AZURE_OCR_ENDPOINT or not AZURE_OCR_KEY:
-    raise RuntimeError("AZURE_OCR_ENDPOINT and AZURE_OCR_KEY must both be set")
-if not OPENAI_API_KEY:
-    raise RuntimeError("OPENAI_API_KEY must be set")
-if not ACS_EMAIL_CONNECTION_STRING or not SMTP_SENDER_EMAIL:
-    print("⚠️ Email disabled: missing ACS_EMAIL_CONNECTION_STRING or SMTP_SENDER_EMAIL")
-
-# print(f"[startup] OCR Endpoint: '{AZURE_OCR_ENDPOINT}'")
-# print(f"[startup] OCR Key present: {bool(AZURE_OCR_KEY)}")
-# print(f"[startup] OpenAI Key present: {bool(OPENAI_API_KEY)}")
-
-# ─── Clients ─────────────────────────────────────────────────────────────────
-fr_credential = AzureKeyCredential(AZURE_OCR_KEY)
-doc_client    = DocumentAnalysisClient(AZURE_OCR_ENDPOINT, fr_credential)
-ai_client     = OpenAI(api_key=OPENAI_API_KEY)
-
-# ─── Flask setup ─────────────────────────────────────────────────────────────
-app = Flask(__name__)
+# Flask setup
+debug = os.getenv('FLASK_ENV') == 'development'
+app = Flask(__name__, static_folder='static')
 app.jinja_env.filters['markdown'] = markdown.markdown
-UPLOAD_FOLDER = "uploads"
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+UPLOAD_FOLDER = 'uploads'
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# this will catch *any* exception anywhere in your routes
+# Load environment
+load_dotenv('.env.development')
+AZURE_OCR_ENDPOINT = os.getenv('AZURE_OCR_ENDPOINT', '').rstrip('/')
+AZURE_OCR_KEY = os.getenv('AZURE_OCR_KEY')
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+ACS_EMAIL_CONNECTION_STRING = os.getenv('ACS_EMAIL_CONNECTION_STRING')
+SMTP_SENDER_EMAIL = os.getenv('SMTP_SENDER_EMAIL')
+if not AZURE_OCR_ENDPOINT or not AZURE_OCR_KEY:
+    raise RuntimeError('OCR endpoint/key not set')
+if not OPENAI_API_KEY:
+    raise RuntimeError('OpenAI key not set')
+
+# Clients
+fr_credential = AzureKeyCredential(AZURE_OCR_KEY)
+doc_client = DocumentAnalysisClient(AZURE_OCR_ENDPOINT, fr_credential)
+ai_client = OpenAI(api_key=OPENAI_API_KEY)
+email_client = None
+if ACS_EMAIL_CONNECTION_STRING and SMTP_SENDER_EMAIL:
+    email_client = EmailClient.from_connection_string(ACS_EMAIL_CONNECTION_STRING)
+
+# Utilities
+def chunk_text(text: str, max_chars: int = 20000) -> str:
+    return text if len(text) <= max_chars else text[-max_chars:]
+
 @app.errorhandler(Exception)
 def handle_exception(e):
-    # print to console
     traceback.print_exc()
-    # render the full traceback in your browser
-    return "<pre>" + traceback.format_exc() + "</pre>", 500
+    return '<pre>' + traceback.format_exc() + '</pre>', 500
 
+@app.route('/favicon.ico')
+def favicon():
+    path = os.path.join(app.static_folder, 'favicon.ico')
+    if os.path.exists(path):
+        return send_from_directory(app.static_folder, 'favicon.ico', mimetype='image/vnd.microsoft.icon')
+    return '', 204
 
-# ─── OCR utility ──────────────────────────────────────────────────────────────
+# OCR extraction
 def extract_text(pdf_path: str) -> str:
-    """
-    Returns a single Markdown string where:
-      **bold**  ⇢ original bold text
-      __underline__ ⇢ underlined text
-    """
-    with open(pdf_path, "rb") as f:
+    with open(pdf_path, 'rb') as f:
         poller = doc_client.begin_analyze_document(
-            "prebuilt-layout",
-            document=f,
-            features=[AnalysisFeature.STYLE_FONT]
+            'prebuilt-layout', document=f, features=[AnalysisFeature.STYLE_FONT]
         )
         result = poller.result()
-
-    chars = list(result.content)              # editable char array
-
-    # Walk spans *right-to-left* so offsets don’t shift
-    for style in (result.styles or []):
-        tag_open, tag_close = "", ""
-        if style.font_weight == "bold":
-            tag_open, tag_close = "**", "**"
-        # if style.text_decoration == "underline":
-            # tag_open, tag_close = "__", "__"
-        # combine if both
-
+    text = result.content or ''
+    chars = list(text)
+    for style in result.styles or []:
+        tag_open = '**' if style.font_weight == 'bold' else ''
+        tag_close = '**' if style.font_weight == 'bold' else ''
         for span in sorted(style.spans, key=lambda s: s.offset, reverse=True):
             start, end = span.offset, span.offset + span.length
             chars[start] = f"{tag_open}{chars[start]}"
-            chars[end - 1] = f"{chars[end - 1]}{tag_close}"
+            chars[end-1] = f"{chars[end-1]}{tag_close}"
+    return ''.join(chars)
 
-    return "".join(chars)
-
-
-
-# ─── Structured-feedback PDF ─────────────────────────────────────────────────
-def save_feedback_pdf_structured(filename: str, student_name: str, parts: list[dict]) -> str:
+# PDF generation
+def save_feedback_pdf_structured(filename: str, student_name: str, parts: list[dict]) -> None:
     out_path = os.path.join(UPLOAD_FOLDER, filename)
     pdf = FPDF(format='A4', unit='mm')
-    pdf.set_auto_page_break(auto=True, margin=20)
+    pdf.set_auto_page_break(True, margin=20)
     pdf.add_page()
-    pdf.set_margins(left=20, top=20, right=20)
-
-    usable_width = pdf.w - pdf.l_margin - pdf.r_margin  # 170 mm
-
-    # Header
+    pdf.set_margins(20, 20, 20)
+    width = pdf.w - pdf.l_margin - pdf.r_margin
     pdf.set_font('Helvetica', 'B', 14)
-    pdf.cell(usable_width, 10, f'Feedback for: {student_name}', ln=True)
+    pdf.cell(width, 10, f'Feedback for: {student_name}', ln=True)
     pdf.ln(5)
-
-    # Per-part feedback
     for part in parts:
-        qid     = part.get('question', 'Unknown')
-        awarded = part.get('awarded')
-        total   = part.get('total')
-        comment = part.get('feedback', '').replace('—', '-')
-
-        header = qid
-        if awarded is not None and total is not None:
-            header += f" - {awarded}/{total}"
+        header = part.get('question', 'Unknown')
+        if part.get('awarded') is not None and part.get('total') is not None:
+            header += f" - {part['awarded']}/{part['total']}"
         pdf.set_font('Helvetica', 'B', 12)
-        pdf.cell(usable_width, 8, header, ln=True)
+        pdf.cell(width, 8, header, ln=True)
         pdf.ln(1)
-
         pdf.set_font('Helvetica', '', 11)
-        pdf.multi_cell(usable_width, 6, comment)
+        pdf.multi_cell(width, 6, part.get('feedback', '').replace('—', '-'))
         pdf.ln(4)
-
     pdf.output(out_path)
-    return out_path
 
-# ─── Class-summary PDF ────────────────────────────────────────────────────────
-def save_class_summary_pdf(filename: str, summary: str, average: float) -> str:
+def save_class_summary_pdf(filename: str, summary: str, average: float) -> None:
     out_path = os.path.join(UPLOAD_FOLDER, filename)
     pdf = FPDF(format='A4', unit='mm')
-    pdf.set_auto_page_break(auto=True, margin=20)
+    pdf.set_auto_page_break(True, margin=20)
     pdf.add_page()
-    pdf.set_margins(left=20, top=20, right=20)
-
-    usable_width = pdf.w - pdf.l_margin - pdf.r_margin
-
+    pdf.set_margins(20, 20, 20)
+    width = pdf.w - pdf.l_margin - pdf.r_margin
     pdf.set_font('Helvetica', 'B', 16)
-    pdf.cell(usable_width, 10, 'Class Summary', ln=True)
+    pdf.cell(width, 10, 'Class Summary', ln=True)
     pdf.ln(3)
     pdf.set_font('Helvetica', 'B', 14)
-    pdf.cell(usable_width, 10, f'Class Average: {average}%', ln=True)
+    pdf.cell(width, 10, f'Class Average: {average}%', ln=True)
     pdf.ln(5)
-
     pdf.set_font('Helvetica', '', 11)
-    line_height = 6
     for para in summary.strip().split('\n\n'):
-        text = para.replace('\n', ' ')
-        pdf.multi_cell(usable_width, line_height, text)
+        pdf.multi_cell(width, 6, para.replace('\n', ' '))
         pdf.ln(2)
-
     pdf.output(out_path)
-    return out_path
 
-# ─── Email utility ────────────────────────────────────────────────────────────
-def send_email_with_attachments_acs(to_email: str, subject: str, body: str, attachments: list[str]):
-    if not ACS_EMAIL_CONNECTION_STRING or not SMTP_SENDER_EMAIL:
-        print("❌ Email not sent: ACS settings missing")
+# Email sending
+def send_email_with_attachments(to_email: str, subject: str, body: str, attachments: list[str]) -> None:
+    if not email_client:
+        print('⚠️ Email client not configured')
         return
-    client = EmailClient.from_connection_string(ACS_EMAIL_CONNECTION_STRING)
     payload = {
-        "senderAddress": SMTP_SENDER_EMAIL,
-        "content":       {"subject": subject, "plainText": body},
-        "recipients":    {"to": [{"address": to_email}]}
+        'senderAddress': SMTP_SENDER_EMAIL,
+        'content': {'subject': subject, 'plainText': body},
+        'recipients': {'to': [{'address': to_email}]},
+        'attachments': []
     }
-    attach_list = []
     for fp in attachments:
-        with open(fp, "rb") as f:
+        if not os.path.exists(fp):
+            print(f"⚠️ Skipping missing attachment {fp}")
+            continue
+        with open(fp, 'rb') as f:
             data = f.read()
-        attach_list.append({
-            "name":             os.path.basename(fp),
-            "contentInBase64":  base64.b64encode(data).decode(),
-            "contentType":      "application/pdf"
+        payload['attachments'].append({
+            'name': os.path.basename(fp),
+            'contentInBase64': base64.b64encode(data).decode(),
+            'contentType': 'application/pdf'
         })
-    payload["attachments"] = attach_list
-    poller = client.begin_send(payload)
-    _ = poller.result()
-    print("✅ Email sent.")
+    email_client.begin_send(payload).result()
+    print('✅ Email sent.')
 
-# ─── Routes ───────────────────────────────────────────────────────────────────
-@app.route("/")
+# Routes
+@app.route('/')
 def index():
-    return render_template("upload.html")
+    return render_template('upload.html')
 
-@app.route("/uploads/<path:filename>")
+@app.route('/uploads/<path:filename>')
 def uploaded_file(filename):
-    return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-@app.route("/upload", methods=["POST"])
+@app.route('/upload', methods=['POST'])
 def upload_file():
+    if 'markscheme_file' not in request.files or not request.files.getlist('student_files'):
+        return 'Mark scheme and at least one student file required.', 400
 
-    # Validate uploads
-    if "markscheme_file" not in request.files or not request.files.getlist("student_files"):
-        return "Mark scheme and at least one student file are required.", 400
+    level = request.form.get('level', '').strip()
+    subject = request.form.get('subject', '').strip()
+    exam_board = request.form.get('exam_board', '').strip()
+    teacher_email = request.form.get('teacher_email', '').strip()
+    additional = request.form.get('additional_info', '').strip()
+    opts = request.form.getlist('delivery_option')
+    view_on_site = 'website' in opts
+    send_email_flag = 'email' in opts
+    feedback_detail = request.form.get('feedback_detail', 'overall')
 
-    # Read form
-    level           = request.form.get("level", "").strip()
-    subject         = request.form.get("subject", "").strip()
-    exam_board      = request.form.get("exam_board", "").strip()
-    teacher_email   = request.form.get("teacher_email", "").strip()
-    additional      = request.form.get("additional_info", "").strip()
-    opts            = request.form.getlist("delivery_option")
-    view_on_site    = "website" in opts
-    send_email      = "email" in opts
-    # ─── NEW: overall vs parts choice ───────────────────────────
-    feedback_detail = request.form.get("feedback_detail", "overall")
+    allowed_levels = ['KS3', 'GCSE', 'A level']
+    allowed_subjects = [
+        'Physics', 'Maths', 'English', 'History', 'Geography',
+        'Biology', 'Chemistry', 'Computer Science',
+        'Design and Technology', 'Art and Design'
+    ]
+    allowed_boards = ['AQA', 'Edexcel', 'OCR', 'WJEC']
+    if level not in allowed_levels or subject not in allowed_subjects or exam_board not in allowed_boards:
+        return f"Invalid selection: {level}, {subject}, {exam_board}", 400
 
-    # Validate dropdowns…
-    allowed_levels   = ["KS3","GCSE","A level"]
-    allowed_subjects = ["Physics","Maths","English","History","Geography",
-                        "Biology","Chemistry","Computer Science",
-                        "Design and Technology","Art and Design"]
-    allowed_boards   = ["AQA","Edexcel","OCR","WJEC"]
-    if level not in allowed_levels:
-        return f"Invalid level '{level}'.", 400
-    if subject not in allowed_subjects:
-        return f"Invalid subject '{subject}'.", 400
-    if exam_board not in allowed_boards:
-        return f"Invalid exam board '{exam_board}'.", 400
-
-    # Save & OCR mark scheme
-    ms      = request.files["markscheme_file"]
-    ms_name = secure_filename(ms.filename)
-    ms_path = os.path.join(UPLOAD_FOLDER, ms_name)
+    # Process markscheme
+    ms = request.files['markscheme_file']
+    ms_file = secure_filename(ms.filename)
+    ms_path = os.path.join(UPLOAD_FOLDER, ms_file)
     ms.save(ms_path)
     markscheme_text = extract_text(ms_path)
-    # print("[DEBUG] First 300 chars of mark-scheme OCR →")
-    # print(markscheme_text[:300])
 
-# ─── Optional Marking-points PDF ───────────────────────────────
-    mp_file = request.files.get("marking_points_file")
+    # Optional marking points
+    mp_file = request.files.get('marking_points_file')
     if mp_file and mp_file.filename:
-        mp_name = secure_filename(mp_file.filename)
-        mp_path = os.path.join(UPLOAD_FOLDER, mp_name)
+        mp_file_name = secure_filename(mp_file.filename)
+        mp_path = os.path.join(UPLOAD_FOLDER, mp_file_name)
         mp_file.save(mp_path)
         marking_points_text = extract_text(mp_path)
     else:
-        marking_points_text = ""          # empty if none provided
-    
+        marking_points_text = ''
 
-    results, marks, all_fb = [], [], []
+    results, marks = [], []
+    for f in request.files.getlist('student_files'):
+        filename = secure_filename(f.filename)
+        file_path = os.path.join(UPLOAD_FOLDER, filename)
+        f.save(file_path)
+        student_text = extract_text(file_path)
 
-    # Process each student PDF
-    for f in request.files.getlist("student_files"):
-        name = secure_filename(f.filename)
-        path = os.path.join(UPLOAD_FOLDER, name)
-        f.save(path)
-        student_text = extract_text(path)
-
-        # ─── Branch on feedback_detail ─────────────────────────────
-        if feedback_detail == "parts":
-            # per-question-part path
+        if feedback_detail == 'parts':
             prompt = (
                 f"Mark Scheme:\n{markscheme_text}\n\n"
                 f"Marking Points (optional):\n{marking_points_text}\n\n"
                 f"Additional Instructions:\n{additional}\n\n"
                 f"Student Response:\n{student_text}\n\n"
-                "For each question-part (e.g. 4a, 4b, i, ii), output a JSON object with:\n"
-                "  - question: the part identifier,\n"
-                "  - awarded: student's marks for this part,\n"
-                "  - total: maximum marks for this part,\n"
-                "  - feedback: a short sentence explaining where they lost marks.\n"
-                "Ignore obvious spelling mistakes unless correct spelling is required for the mark.\n"
-                "Wrap all objects in a top-level JSON array and output ONLY the JSON."
+                "For each question-part (e.g. Q4a, Q4b, Q4c), output JSON objects with question, awarded, total, feedback."
             )
             try:
-                resp  = ai_client.chat.completions.create(
-                    model="gpt-4",
-                    messages=[
-                        {"role":"system","content":
-                            f"You are an examiner for {level} ({exam_board} {subject}). Use only the mark scheme and additional instructions."},
-                        {"role":"user","content": prompt}
-                    ],
-                    temperature=0.0
+                resp = ai_client.chat.completions.create(
+                    model='gpt-4', messages=[
+                        {'role':'system', 'content': f"Examiner for {level} {exam_board} {subject}."},
+                        {'role':'user', 'content': prompt}
+                    ], temperature=0
                 )
                 parts = json.loads(resp.choices[0].message.content)
             except Exception as e:
-                parts = [{
-                    "question": "Overall",
-                    "awarded":  None,
-                    "total":    None,
-                    "feedback": f"Error generating structured feedback: {e}"
-                }]
+                parts = [{'question':'Overall','awarded':None,'total':None,'feedback':f"Error: {e}"}]
         else:
-            # overall-feedback fallback
+            overall_message = (
+                f"Mark Scheme:\n{markscheme_text}\n\n"
+                f"Marking Points (optional):\n{marking_points_text}\n\n"
+                f"Additional Instructions:\n{additional}\n\n"
+                f"Student Response:\n{student_text}\n\n"
+                "First state Mark: X/Y, then What went well, Targets, Misconceptions."
+            )
             try:
-                resp    = ai_client.chat.completions.create(
-                    model="gpt-4",
-                    messages=[
-                        {"role":"system","content":
-                            f"You are an examiner for {level} ({exam_board} {subject}). Use only the mark scheme and additional instructions."},
-                        {"role":"user","content":
-                            f"Mark Scheme:\n{markscheme_text}\n\n"
-                            f"Marking Points (optional):\n{marking_points_text}\n\n"
-                            f"Additional Instructions:\n{additional}\n\n"
-                            f"Student Response:\n{student_text}\n\n"
-                            "Instructions:\n"
-                            "- First state 'Mark: X/Y'.\n"
-                            "Ignore obvious spelling mistakes unless correct spelling is required for the mark.\n"
-                            "- Then feedback under 'What went well', 'Targets for improvement', and 'Misconceptions'."}
-                    ],
-                    temperature=0.0
+                resp = ai_client.chat.completions.create(
+                    model='gpt-4', messages=[
+                        {'role':'system', 'content': f"Examiner for {level} {exam_board} {subject}."},
+                        {'role':'user', 'content': overall_message}
+                    ], temperature=0
                 )
                 fb_text = resp.choices[0].message.content
+                parts = [{'question':'Overall','awarded':None,'total':None,'feedback':fb_text}]
             except Exception as e:
-                fb_text = f"Error generating feedback: {e}"
-            parts = [{
-                "question": "Overall",
-                "awarded":  None,
-                "total":    None,
-                "feedback": fb_text
-            }]
+                parts = [{'question':'Overall','awarded':None,'total':None,'feedback':f"Error: {e}"}]
 
-        all_fb.append(parts)
-
-        # Save structured-feedback PDF
-        pdf_name = f"{os.path.splitext(name)[0]}_feedback.pdf"
-        save_feedback_pdf_structured(pdf_name, name, parts)
-
-        # Extract marks from parts for class average
+        save_feedback_pdf_structured(f"{os.path.splitext(filename)[0]}_feedback.pdf", filename, parts)
+        results.append({'filename': filename, 'parts': parts, 'student_text': student_text})
         for p in parts:
-            if p.get("awarded") is not None and p.get("total") is not None:
-                marks.append(round(p["awarded"]/p["total"]*100,1))
+            if p.get('awarded') is not None and p.get('total') is not None:
+                marks.append(round(p['awarded']/p['total']*100, 1))
 
-        # Collect for site rendering
-        results.append({
-            "filename":     name,
-            "parts":        parts,
-            "student_text": student_text
-        })
-
-    # Compute class summary
-    valid     = [m for m in marks if m is not None]
-    class_avg = round(sum(valid)/max(len(valid),1),1)
+    class_avg = round(sum(marks)/len(marks), 1) if marks else 0.0
+    # build and truncate feedback prompt correctly
+    feedback_inputs = [
+        "\n".join(p.get('feedback','') for p in r['parts'])
+        for r in results
+    ]
+    feedback_prompt = chunk_text("\n\n".join(feedback_inputs))
     try:
         summ = ai_client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role":"system","content":
-                    f"You are a TA summarising feedback trends for {level} {subject} ({exam_board})."},
-                {"role":"user","content":
-                    "\n\n".join([""] * len(all_fb)) + "\n\nPlease summarise key trends in performance."}
-            ],
-            temperature=0.0
+            model='gpt-4', messages=[
+                {'role':'system', 'content': f"TA summarising trends for {level} {subject} {exam_board}."},
+                {'role':'user', 'content': f"{feedback_prompt}\n\nPlease summarise key trends."}
+            ], temperature=0
         )
         class_feedback = summ.choices[0].message.content
     except Exception as e:
-        class_feedback = f"Class summary error: {e}"
+        class_feedback = f"Error: {e}" 
+    save_class_summary_pdf('class_summary.pdf', class_feedback, class_avg)
 
+    if send_email_flag and email_client:
+        attachments = [os.path.join(UPLOAD_FOLDER, f"{os.path.splitext(r['filename'])[0]}_feedback.pdf") for r in results]
+        attachments.append(os.path.join(UPLOAD_FOLDER, 'class_summary.pdf'))
+        send_email_with_attachments(teacher_email, 'AI Marking Results', f"Class Average: {class_avg}%", attachments)
 
-
-    # Save class-summary PDF
-    save_class_summary_pdf("class_summary.pdf", class_feedback, class_avg)
-
-    # Email if requested
-    if send_email:
-        atts = [
-            os.path.join(UPLOAD_FOLDER, f"{os.path.splitext(r['filename'])[0]}_feedback.pdf")
-            for r in results
-        ]
-        atts.append(os.path.join(UPLOAD_FOLDER, "class_summary.pdf"))
-        send_email_with_attachments_acs(
-            teacher_email,
-            "Your AI Marking Results",
-            f"Class Average: {class_avg}%\n\nPlease find attached feedback.",
-            atts
-        )
-
-    # Render on site or confirm email
     if view_on_site:
-        return render_template(
-            "results.html",
-            results=results,
-            markscheme_text=markscheme_text,
-            subject=subject,
-            exam_board=exam_board,
-            level=level,
-            class_average=class_avg,
-            class_feedback=class_feedback
-        )
+        return render_template('results.html', results=results, class_average=class_avg, class_feedback=class_feedback)
+    return '<h2>Feedback completed.</h2><a href="/">Home</a>'
 
-    return (
-        "<h2>Feedback is being emailed to you.</h2>"
-        "<p>Thank you! You’ll receive your results shortly.</p>"
-        "<a href='/'>Mark another set of papers</a>"
-    )
-
-if __name__ == "__main__":
-    port = int(os.getenv("PORT",8000))
-    app.run(host="0.0.0.0", port=port, debug=True)
-
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.getenv('PORT', '8000')), debug=debug)
