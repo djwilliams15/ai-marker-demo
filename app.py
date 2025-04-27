@@ -86,20 +86,22 @@ def save_feedback_pdf_structured(filename: str, student_name: str, parts: list[d
     pdf.add_page()
     pdf.set_margins(20, 20, 20)
     width = pdf.w - pdf.l_margin - pdf.r_margin
+    # Header
     pdf.set_font('Helvetica', 'B', 14)
-    pdf.cell(width, 10, f'Feedback for: {student_name}', ln=True)
+    pdf.multi_cell(width, 10, f'Feedback for: {student_name}')
     pdf.ln(5)
+    # Per-part feedback
     for part in parts:
         header = part.get('question', 'Unknown')
         if part.get('awarded') is not None and part.get('total') is not None:
             header += f" - {part['awarded']}/{part['total']}"
         pdf.set_font('Helvetica', 'B', 12)
-        pdf.cell(width, 8, header, ln=True)
-        pdf.ln(1)
+        pdf.multi_cell(width, 8, header)
         pdf.set_font('Helvetica', '', 11)
         pdf.multi_cell(width, 6, part.get('feedback', '').replace('—', '-'))
-        pdf.ln(4)
+        pdf.ln(2)
     pdf.output(out_path)
+
 
 def save_class_summary_pdf(filename: str, summary: str, average: float) -> None:
     out_path = os.path.join(UPLOAD_FOLDER, filename)
@@ -181,16 +183,16 @@ def upload_file():
 
     # Process markscheme
     ms = request.files['markscheme_file']
-    ms_file = secure_filename(ms.filename)
-    ms_path = os.path.join(UPLOAD_FOLDER, ms_file)
+    ms_filename = secure_filename(ms.filename)
+    ms_path = os.path.join(UPLOAD_FOLDER, ms_filename)
     ms.save(ms_path)
     markscheme_text = extract_text(ms_path)
 
     # Optional marking points
     mp_file = request.files.get('marking_points_file')
     if mp_file and mp_file.filename:
-        mp_file_name = secure_filename(mp_file.filename)
-        mp_path = os.path.join(UPLOAD_FOLDER, mp_file_name)
+        mp_filename = secure_filename(mp_file.filename)
+        mp_path = os.path.join(UPLOAD_FOLDER, mp_filename)
         mp_file.save(mp_path)
         marking_points_text = extract_text(mp_path)
     else:
@@ -241,18 +243,23 @@ def upload_file():
             except Exception as e:
                 parts = [{'question':'Overall','awarded':None,'total':None,'feedback':f"Error: {e}"}]
 
+        # Save individual feedback PDF
         save_feedback_pdf_structured(f"{os.path.splitext(filename)[0]}_feedback.pdf", filename, parts)
         results.append({'filename': filename, 'parts': parts, 'student_text': student_text})
-        for p in parts:
-            if p.get('awarded') is not None and p.get('total') is not None:
-                marks.append(round(p['awarded']/p['total']*100, 1))
+        # Extract and compute marks safely
+        for part in parts:
+            awarded = part.get('awarded')
+            total = part.get('total')
+            try:
+                awarded_val = float(awarded)
+                total_val = float(total)
+                marks.append(round(awarded_val / total_val * 100, 1))
+            except Exception:
+                continue
 
-    class_avg = round(sum(marks)/len(marks), 1) if marks else 0.0
-    # build and truncate feedback prompt correctly
-    feedback_inputs = [
-        "\n".join(p.get('feedback','') for p in r['parts'])
-        for r in results
-    ]
+    # Class summary
+    class_avg = round(sum(marks) / len(marks), 1) if marks else 0.0
+    feedback_inputs = ["\n".join(p.get('feedback', '') for p in r['parts']) for r in results]
     feedback_prompt = chunk_text("\n\n".join(feedback_inputs))
     try:
         summ = ai_client.chat.completions.create(
@@ -263,9 +270,10 @@ def upload_file():
         )
         class_feedback = summ.choices[0].message.content
     except Exception as e:
-        class_feedback = f"Error: {e}" 
+        class_feedback = f"Error: {e}"
     save_class_summary_pdf('class_summary.pdf', class_feedback, class_avg)
 
+    # Email or render
     if send_email_flag and email_client:
         attachments = [os.path.join(UPLOAD_FOLDER, f"{os.path.splitext(r['filename'])[0]}_feedback.pdf") for r in results]
         attachments.append(os.path.join(UPLOAD_FOLDER, 'class_summary.pdf'))
