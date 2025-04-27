@@ -88,20 +88,22 @@ def save_feedback_pdf_structured(filename: str, student_name: str, parts: list[d
     width = pdf.w - pdf.l_margin - pdf.r_margin
     # Header
     pdf.set_font('Helvetica', 'B', 14)
+    pdf.set_x(pdf.l_margin)
     pdf.multi_cell(width, 10, f'Feedback for: {student_name}')
     pdf.ln(5)
     # Per-part feedback
     for part in parts:
+        pdf.set_x(pdf.l_margin)
         header = part.get('question', 'Unknown')
         if part.get('awarded') is not None and part.get('total') is not None:
             header += f" - {part['awarded']}/{part['total']}"
         pdf.set_font('Helvetica', 'B', 12)
         pdf.multi_cell(width, 8, header)
+        pdf.set_x(pdf.l_margin)
         pdf.set_font('Helvetica', '', 11)
         pdf.multi_cell(width, 6, part.get('feedback', '').replace('—', '-'))
         pdf.ln(2)
     pdf.output(out_path)
-
 
 def save_class_summary_pdf(filename: str, summary: str, average: float) -> None:
     out_path = os.path.join(UPLOAD_FOLDER, filename)
@@ -243,10 +245,8 @@ def upload_file():
             except Exception as e:
                 parts = [{'question':'Overall','awarded':None,'total':None,'feedback':f"Error: {e}"}]
 
-        # Save individual feedback PDF
         save_feedback_pdf_structured(f"{os.path.splitext(filename)[0]}_feedback.pdf", filename, parts)
         results.append({'filename': filename, 'parts': parts, 'student_text': student_text})
-        # Extract and compute marks safely
         for part in parts:
             awarded = part.get('awarded')
             total = part.get('total')
@@ -254,12 +254,12 @@ def upload_file():
                 awarded_val = float(awarded)
                 total_val = float(total)
                 marks.append(round(awarded_val / total_val * 100, 1))
-            except Exception:
+            except:
                 continue
 
     # Class summary
-    class_avg = round(sum(marks) / len(marks), 1) if marks else 0.0
-    feedback_inputs = ["\n".join(p.get('feedback', '') for p in r['parts']) for r in results]
+    class_avg = round(sum(marks)/len(marks), 1) if marks else 0.0
+    feedback_inputs = ["\n".join(p.get('feedback','') for p in r['parts']) for r in results]
     feedback_prompt = chunk_text("\n\n".join(feedback_inputs))
     try:
         summ = ai_client.chat.completions.create(
@@ -273,7 +273,6 @@ def upload_file():
         class_feedback = f"Error: {e}"
     save_class_summary_pdf('class_summary.pdf', class_feedback, class_avg)
 
-    # Email or render
     if send_email_flag and email_client:
         attachments = [os.path.join(UPLOAD_FOLDER, f"{os.path.splitext(r['filename'])[0]}_feedback.pdf") for r in results]
         attachments.append(os.path.join(UPLOAD_FOLDER, 'class_summary.pdf'))
