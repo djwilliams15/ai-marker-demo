@@ -284,23 +284,23 @@ def upload_file():
 
 # betatesting URL
 
-from flask import send_from_directory
+# from flask import send_from_directory
 
-@app.route('/betatesting/')
-def betatest_index():
-    # Serve the beta index page
-    return send_from_directory(
-        os.path.join(app.root_path, 'betatesting'),
-        'index.html'
-    )
+# @app.route('/betatesting/')
+# def betatest_index():
+#     # Serve the beta index page
+#     return send_from_directory(
+#         os.path.join(app.root_path, 'betatesting'),
+#         'index.html'
+#     )
 
-@app.route('/betatesting/<path:filename>')
-def betatest_static(filename):
-    # Serve any static asset under /betatesting/
-    return send_from_directory(
-        os.path.join(app.root_path, 'betatesting'),
-        filename
-    )
+# @app.route('/betatesting/<path:filename>')
+# def betatest_static(filename):
+#     # Serve any static asset under /betatesting/
+#     return send_from_directory(
+#         os.path.join(app.root_path, 'betatesting'),
+#         filename
+#     )
 
 
 if __name__ == '__main__':
