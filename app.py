@@ -165,13 +165,16 @@ def save_feedback_pdf_structured(filename: str, student_name: str, parts: list[d
     for part in parts:
         header = part.get('question', 'Unknown')
         if part.get('awarded') is not None and part.get('total') is not None:
-            header += f" - {part['awarded']}/{part['total']}"
+            header += f"- {part['awarded']}/{part['total']}"
         pdf.set_font('Helvetica', 'B', 12)
         pdf.multi_cell(width, 8, header)
 
+        # strip leading/trailing whitespace, normalize dashes
+        feedback_text = part.get('feedback', '').strip().replace('—', '-')
+
         pdf.set_font('Helvetica', '', 11)
-        feedback_text = part.get('feedback', '').replace('—', '-')
-        pdf.multi_cell(width, 6, feedback_text)
+        # force left alignment
+        pdf.multi_cell(width, 6, feedback_text, align='L')
         pdf.ln(2)
 
     # 5) Write out the file
