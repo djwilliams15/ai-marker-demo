@@ -33,9 +33,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Rate-limiting via cookie: 10 free PDF uploads per rolling week
+# Rate-limiting via cookie: 15 free PDF uploads per rolling week
 RATE_LIMIT_COOKIE = 'rate_limit'
-MAX_UPLOADS      = 10
+MAX_UPLOADS      = 15
 WINDOW           = 7 * 24 * 60 * 60   # one week in seconds
 
 def load_rate_limit():
@@ -147,9 +147,9 @@ def save_feedback_pdf_structured(filename: str, student_name: str, parts: list[d
     """Generates per-student feedback PDF."""
     out_path = os.path.join(UPLOAD_FOLDER, filename)
     pdf = FPDF(format='A4', unit='mm')
-    pdf.set_auto_page_break(True, margin=20)
-    pdf.add_page()
     pdf.set_margins(20, 20, 20)
+    pdf.set_auto_page_break(True, margin=20)
+    pdf.add_page() 
     width = pdf.w - pdf.l_margin - pdf.r_margin
 
     pdf.set_font('Helvetica', 'B', 14)
@@ -235,7 +235,7 @@ def upload_file():
             return (
                 jsonify({
                     'error': 'rate_limit_exceeded',
-                    'message': 'You have reached 10 free uploads this week.'
+                    'message': 'You have reached 15 free uploads this week.'
                 }),
                 429
             )
