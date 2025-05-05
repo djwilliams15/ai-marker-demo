@@ -144,51 +144,72 @@ def extract_text(pdf_path: str) -> str:
     return ''.join(chars)
 
 def save_feedback_pdf_structured(filename: str, student_name: str, parts: list[dict]) -> None:
-    """Generates per-student feedback PDF."""
+    """Generates per-student feedback PDF with proper margins."""
     out_path = os.path.join(UPLOAD_FOLDER, filename)
     pdf = FPDF(format='A4', unit='mm')
-    pdf.set_margins(20, 20, 20)
+
+    # 1) Set margins before adding any page
+    pdf.set_margins(20, 20, 20)           # left, top, right
     pdf.set_auto_page_break(True, margin=20)
-    pdf.add_page() 
+    pdf.add_page()
+
+    # 2) Compute usable width
     width = pdf.w - pdf.l_margin - pdf.r_margin
 
+    # 3) Header
     pdf.set_font('Helvetica', 'B', 14)
     pdf.multi_cell(width, 10, f'Feedback for: {student_name}')
     pdf.ln(5)
 
+    # 4) Per-part feedback
     for part in parts:
         header = part.get('question', 'Unknown')
         if part.get('awarded') is not None and part.get('total') is not None:
-            header += f" - {part['awarded']}/{part['total']}"
+            header += f" – {part['awarded']}/{part['total']}"
         pdf.set_font('Helvetica', 'B', 12)
         pdf.multi_cell(width, 8, header)
+
         pdf.set_font('Helvetica', '', 11)
-        pdf.multi_cell(width, 6, part.get('feedback', '').replace('—', '-'))
+        feedback_text = part.get('feedback', '').replace('—', '-')
+        pdf.multi_cell(width, 6, feedback_text)
         pdf.ln(2)
 
+    # 5) Write out the file
     pdf.output(out_path)
 
+
 def save_class_summary_pdf(filename: str, summary: str, average: float) -> None:
-    """Generates a class summary feedback PDF."""
+    """Generates a class summary feedback PDF with proper margins."""
     out_path = os.path.join(UPLOAD_FOLDER, filename)
     pdf = FPDF(format='A4', unit='mm')
+
+    # 1) Set margins before adding any page
+    pdf.set_margins(20, 20, 20)
     pdf.set_auto_page_break(True, margin=20)
     pdf.add_page()
-    pdf.set_margins(20, 20, 20)
+
+    # 2) Compute usable width
     width = pdf.w - pdf.l_margin - pdf.r_margin
 
+    # 3) Title
     pdf.set_font('Helvetica', 'B', 16)
-    pdf.cell(width, 10, 'Class Summary', ln=True)
+    pdf.multi_cell(width, 10, 'Class Summary')
     pdf.ln(3)
+
+    # 4) Class average
     pdf.set_font('Helvetica', 'B', 14)
-    pdf.cell(width, 10, f'Class Average: {average}%', ln=True)
+    pdf.multi_cell(width, 10, f'Class Average: {average}%')
     pdf.ln(5)
+
+    # 5) Body paragraphs
     pdf.set_font('Helvetica', '', 11)
     for para in summary.strip().split('\n\n'):
         pdf.multi_cell(width, 6, para.replace('\n', ' '))
         pdf.ln(2)
 
+    # 6) Write out the file
     pdf.output(out_path)
+
 
 def send_email_with_attachments(to_email: str, subject: str, body: str, attachments: list[str]) -> None:
     """Sends results via Azure Communication Services email."""
