@@ -153,6 +153,10 @@ def save_feedback_pdf_structured(filename: str, student_name: str, parts: list[d
     pdf.set_auto_page_break(True, margin=20)
     pdf.add_page()
 
+    # Debug: print margins and current x
+    print(f"DEBUG → l_margin={pdf.l_margin}, r_margin={pdf.r_margin}, x={pdf.x}")
+
+
     # 2) Compute usable width
     width = pdf.w - pdf.l_margin - pdf.r_margin
 
@@ -176,6 +180,8 @@ def save_feedback_pdf_structured(filename: str, student_name: str, parts: list[d
         # force left alignment
         pdf.multi_cell(width, 6, feedback_text, align='L')
         pdf.ln(2)
+        # Debug: show raw feedback string with whitespace
+        print("DEBUG feedback_text repr:", repr(feedback_text))
 
     # 5) Write out the file
     pdf.output(out_path)
@@ -284,7 +290,7 @@ def upload_file():
     opts             = request.form.getlist('delivery_option')
     view_on_site     = 'website' in opts
     send_email_flag  = 'email' in opts
-    feedback_detail  = request.form.get('feedback_detail', 'overall')
+    # feedback_detail  = request.form.get('feedback_detail', 'overall')
 
     # Validate selections
     allowed_levels   = ['KS3', 'GCSE', 'A level']
@@ -315,54 +321,57 @@ def upload_file():
         marking_points_text = ''
 
     results, marks = [], []
+    # for f in request.files.getlist('student_files'):
     for f in request.files.getlist('student_files'):
         filename  = secure_filename(f.filename)
         file_path = os.path.join(UPLOAD_FOLDER, filename)
         f.save(file_path)
         student_text = extract_text(file_path)
 
-        if feedback_detail == 'parts':
-            prompt = (
-                f"Mark Scheme:\n{markscheme_text}\n\n"
-                f"Marking Points (optional):\n{marking_points_text}\n\n"
-                f"Additional Instructions:\n{additional}\n\n"
-                f"Student Response:\n{student_text}\n\n"
-                "For each question-part (e.g. Q4a, Q4b), output JSON objects with question, awarded, total, feedback."
+    # if feedback_detail == 'parts':
+        prompt = (
+            f"Mark Scheme:\n{markscheme_text}\n\n"
+            f"Marking Points (optional):\n{marking_points_text}\n\n"
+            f"Additional Instructions:\n{additional}\n\n"
+            f"Student Response:\n{student_text}\n\n"
+            "For each question-part (e.g. Q4a, Q4b), output JSON objects with question, awarded, total, feedback."
+        )
+        try:
+            resp = ai_client.chat.completions.create(
+                model='gpt-4',
+                messages=[
+                    {'role':'system', 'content': f"Examiner for {level} {exam_board} {subject}."},
+                    {'role':'user',   'content': prompt}
+                ],
+                temperature=0
             )
-            try:
-                resp = ai_client.chat.completions.create(
-                    model='gpt-4',
-                    messages=[
-                        {'role':'system', 'content': f"Examiner for {level} {exam_board} {subject}."},
-                        {'role':'user',   'content': prompt}
-                    ],
-                    temperature=0
-                )
-                parts = json.loads(resp.choices[0].message.content)
-            except Exception as e:
-                parts = [{'question':'Overall','awarded':None,'total':None,'feedback':f"Error: {e}"}]
-        else:
-            overall_message = (
-                f"Mark Scheme:\n{markscheme_text}\n\n"
-                f"Marking Points (optional):\n{marking_points_text}\n\n"
-                f"Additional Instructions:\n{additional}\n\n"
-                f"Student Response:\n{student_text}\n\n"
-                "First state Mark: X/Y, then What went well, Targets, Misconceptions."
-            )
-            try:
-                resp = ai_client.chat.completions.create(
-                    model='gpt-4',
-                    messages=[
-                        {'role':'system', 'content': f"Examiner for {level} {exam_board} {subject}."},
-                        {'role':'user',   'content': overall_message}
-                    ],
-                    temperature=0
-                )
-                fb_text = resp.choices[0].message.content
-                parts = [{'question':'Overall','awarded':None,'total':None,'feedback':fb_text}]
-            except Exception as e:
-                parts = [{'question':'Overall','awarded':None,'total':None,'feedback':f"Error: {e}"}]
+            parts = json.loads(resp.choices[0].message.content)
+        except Exception as e:
+            # parts = [{'question':'Overall','awarded':None,'total':None,'feedback':f"Error: {e}"}]
+            parts = [{'question':'Error','awarded':None,'total':None,'feedback':f"{e}"}]
+        # else:
+        #     overall_message = (
+        #         f"Mark Scheme:\n{markscheme_text}\n\n"
+        #         f"Marking Points (optional):\n{marking_points_text}\n\n"
+        #         f"Additional Instructions:\n{additional}\n\n"
+        #         f"Student Response:\n{student_text}\n\n"
+        #         "First state Mark: X/Y, then What went well, Targets, Misconceptions."
+        #     )
+        #     try:
+        #         resp = ai_client.chat.completions.create(
+        #             model='gpt-4',
+        #             messages=[
+        #                 {'role':'system', 'content': f"Examiner for {level} {exam_board} {subject}."},
+        #                 {'role':'user',   'content': overall_message}
+        #             ],
+        #             temperature=0
+        #         )
+        #         fb_text = resp.choices[0].message.content
+        #         parts = [{'question':'Overall','awarded':None,'total':None,'feedback':fb_text}]
+        #     except Exception as e:
+        #         parts = [{'question':'Overall','awarded':None,'total':None,'feedback':f"Error: {e}"}]
 
+        # save_feedback_pdf_structured(f"{os.path.splitext(filename)[0]}_feedback.pdf", filename, parts)
         save_feedback_pdf_structured(f"{os.path.splitext(filename)[0]}_feedback.pdf", filename, parts)
         results.append({'filename': filename, 'parts': parts, 'student_text': student_text})
         for part in parts:
