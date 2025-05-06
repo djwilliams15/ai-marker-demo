@@ -148,10 +148,13 @@ def save_feedback_pdf_structured(filename: str, student_name: str, parts: list[d
     out_path = os.path.join(UPLOAD_FOLDER, filename)
     pdf = FPDF(format='A4', unit='mm')
 
-    # 1) Set margins before adding any page
+ #  Set margins, then add page, then re-apply just in case
     pdf.set_margins(20, 20, 20)           # left, top, right
     pdf.set_auto_page_break(True, margin=20)
     pdf.add_page()
+    pdf.set_left_margin(20)
+    pdf.set_right_margin(20)
+
 
     # Debug: print margins and current x
     print(f"DEBUG → l_margin={pdf.l_margin}, r_margin={pdf.r_margin}, x={pdf.x}")
@@ -162,6 +165,7 @@ def save_feedback_pdf_structured(filename: str, student_name: str, parts: list[d
 
     # 3) Header
     pdf.set_font('Helvetica', 'B', 14)
+    pdf.set_x(pdf.l_margin)
     pdf.multi_cell(width, 10, f'Feedback for: {student_name}')
     pdf.ln(5)
 
@@ -171,6 +175,7 @@ def save_feedback_pdf_structured(filename: str, student_name: str, parts: list[d
         if part.get('awarded') is not None and part.get('total') is not None:
             header += f"- {part['awarded']}/{part['total']}"
         pdf.set_font('Helvetica', 'B', 12)
+        pdf.set_x(pdf.l_margin)
         pdf.multi_cell(width, 8, header)
 
         # strip leading/trailing whitespace, normalize dashes
@@ -178,6 +183,7 @@ def save_feedback_pdf_structured(filename: str, student_name: str, parts: list[d
 
         pdf.set_font('Helvetica', '', 11)
         # force left alignment
+        pdf.set_x(pdf.l_margin)
         pdf.multi_cell(width, 6, feedback_text, align='L')
         pdf.ln(2)
         # Debug: show raw feedback string with whitespace
@@ -290,7 +296,6 @@ def upload_file():
     opts             = request.form.getlist('delivery_option')
     view_on_site     = 'website' in opts
     send_email_flag  = 'email' in opts
-    # feedback_detail  = request.form.get('feedback_detail', 'overall')
 
     # Validate selections
     allowed_levels   = ['KS3', 'GCSE', 'A level']
@@ -321,7 +326,6 @@ def upload_file():
         marking_points_text = ''
 
     results, marks = [], []
-    # for f in request.files.getlist('student_files'):
     for f in request.files.getlist('student_files'):
         filename  = secure_filename(f.filename)
         file_path = os.path.join(UPLOAD_FOLDER, filename)
@@ -347,31 +351,9 @@ def upload_file():
             )
             parts = json.loads(resp.choices[0].message.content)
         except Exception as e:
-            # parts = [{'question':'Overall','awarded':None,'total':None,'feedback':f"Error: {e}"}]
-            parts = [{'question':'Error','awarded':None,'total':None,'feedback':f"{e}"}]
-        # else:
-        #     overall_message = (
-        #         f"Mark Scheme:\n{markscheme_text}\n\n"
-        #         f"Marking Points (optional):\n{marking_points_text}\n\n"
-        #         f"Additional Instructions:\n{additional}\n\n"
-        #         f"Student Response:\n{student_text}\n\n"
-        #         "First state Mark: X/Y, then What went well, Targets, Misconceptions."
-        #     )
-        #     try:
-        #         resp = ai_client.chat.completions.create(
-        #             model='gpt-4',
-        #             messages=[
-        #                 {'role':'system', 'content': f"Examiner for {level} {exam_board} {subject}."},
-        #                 {'role':'user',   'content': overall_message}
-        #             ],
-        #             temperature=0
-        #         )
-        #         fb_text = resp.choices[0].message.content
-        #         parts = [{'question':'Overall','awarded':None,'total':None,'feedback':fb_text}]
-        #     except Exception as e:
-        #         parts = [{'question':'Overall','awarded':None,'total':None,'feedback':f"Error: {e}"}]
 
-        # save_feedback_pdf_structured(f"{os.path.splitext(filename)[0]}_feedback.pdf", filename, parts)
+            parts = [{'question':'Error','awarded':None,'total':None,'feedback':f"{e}"}]
+
         save_feedback_pdf_structured(f"{os.path.splitext(filename)[0]}_feedback.pdf", filename, parts)
         results.append({'filename': filename, 'parts': parts, 'student_text': student_text})
         for part in parts:
