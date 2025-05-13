@@ -145,6 +145,8 @@ def extract_text(pdf_path: str) -> str:
 
 def save_feedback_pdf_structured(filename: str, student_name: str, parts: list[dict]) -> None:
     """Generates per-student feedback PDF with proper margins."""
+    if isinstance(parts, dict):
+        parts = [parts]
     out_path = os.path.join(UPLOAD_FOLDER, filename)
     pdf = FPDF(format='A4', unit='mm')
 
@@ -170,6 +172,8 @@ def save_feedback_pdf_structured(filename: str, student_name: str, parts: list[d
     pdf.ln(5)
 
     # 4) Per-part feedback
+    print("DEBUG parts type:", type(parts))
+    print("DEBUG parts repr:", repr(parts))
     for part in parts:
         header = part.get('question', 'Unknown')
         if part.get('awarded') is not None and part.get('total') is not None:
@@ -350,6 +354,8 @@ def upload_file():
                 temperature=0
             )
             parts = json.loads(resp.choices[0].message.content)
+            if isinstance(parts, dict):
+                parts = [parts]
         except Exception as e:
 
             parts = [{'question':'Error','awarded':None,'total':None,'feedback':f"{e}"}]
