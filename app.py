@@ -306,7 +306,7 @@ def upload_file():
     allowed_subjects = [
         'Physics', 'Maths', 'English', 'History', 'Geography',
         'Biology', 'Chemistry', 'Computer Science',
-        'Design and Technology', 'Art and Design'
+        'Design and Technology', 'Art and Design', 'French', 'German'
     ]
     allowed_boards   = ['AQA', 'Edexcel', 'OCR', 'WJEC']
     if level not in allowed_levels or subject not in allowed_subjects or exam_board not in allowed_boards:
